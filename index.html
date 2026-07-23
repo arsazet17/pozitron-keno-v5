@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08111f">
-<title>ПОЗИТРОН КЕНО v5.2</title>
+<title>ПОЗИТРОН КЕНО v5.4</title>
 <link rel="manifest" href="manifest.webmanifest">
 
 <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
@@ -79,7 +79,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
 <div class="app">
   <div class="top">
     <div>
-      <div class="brand">🎯 ПОЗИТРОН КЕНО v5.2</div>
+      <div class="brand">🎯 ПОЗИТРОН КЕНО v5.4</div>
       <div id="status" class="sub">v5.2 · Аналоги в архиве · база загружается…</div>
     </div>
     <div>
@@ -110,7 +110,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
     <button class="tool" data-panel="analogsPanel">🧭 Аналоги</button>
     <button class="tool" data-panel="archivePanel">📅 Архив</button>
     <button class="tool" data-panel="dataPanel">💾 База</button>
-    <button class="tool" data-panel="infoPanel">ℹ️ О v5.2</button>
+    <button class="tool" data-panel="infoPanel">ℹ️ О v5.4</button>
   </div>
 
   <section id="searchPanel" class="card panel">
@@ -157,7 +157,6 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
 
   <section id="archivePanel" class="card panel">
     <div id="archive"></div>
-    <div id="archiveDetails"></div>
   </section>
 
   <section id="dataPanel" class="card panel">
@@ -169,7 +168,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   </section>
 
   <section id="infoPanel" class="card panel">
-    <p class="small">Версия v5.3: исправлено открытие дат в архиве и добавлен просмотр всех тиражей дня. Добавлен модуль «Аналоги в архиве». Он сравнивает цепочки победных столбов, числа, распределение по столбам, переходы, сумму, чётность, одиночные и пустые столбы, затем показывает, что вышло следующим тиражом в похожих случаях.</p>
+    <p class="small">Версия v5.4: исправлено открытие дат в архиве; выбранная дата теперь открывается внутри раздела «Архив», а не переносит на сегодняшние цепочки. Модуль «Аналоги в архиве»  Он сравнивает цепочки победных столбов, числа, распределение по столбам, переходы, сумму, чётность, одиночные и пустые столбы, затем показывает, что вышло следующим тиражом в похожих случаях.</p>
   </section>
 </div>
 
@@ -327,30 +326,41 @@ function renderChains(){
   return `<div class="chain"><div class="chain-top">${b[0].draw}–${b.at(-1).draw} | ${showDate(b[0].date)} | ${normTime(b[0].time)}–${normTime(b.at(-1).time)}</div><div class="seq">${seq}</div>${b.length===5&&gap>30?'<div class="break">☕ перерыв 1 час</div>':b.length<5?'<div class="open">Открытая цепочка</div>':''}</div>`
  }).join('')
 }
-function archiveDayBlocks(day){
+function archiveDateKey(d){return normDate(d.date)}
+function archiveDateTimeValue(d){
+ const key=archiveDateKey(d),parts=key.split(/[-.]/).map(Number);
+ let y,m,day;
+ if(parts[0]>1900){[y,m,day]=parts}else{[day,m,y]=parts;if(y<100)y+=2000}
+ return new Date(y||2000,(m||1)-1,day||1,0,0,0).getTime()+minutes(d.time)
+}
+function renderArchive(){
+ const m=new Map();
+ draws.forEach(d=>{const k=archiveDateKey(d);m.set(k,(m.get(k)||0)+1)});
+ const rows=[...m.entries()].sort((a,b)=>{
+  const da=draws.find(d=>archiveDateKey(d)===a[0]),db=draws.find(d=>archiveDateKey(d)===b[0]);
+  return archiveDateTimeValue(db)-archiveDateTimeValue(da)
+ });
+ $('archive').innerHTML=`<div class="section" style="margin-top:0"><span>Архив по датам</span></div>`+
+  (rows.map(([date,n])=>`<button type="button" class="row archive-date" data-archive-date="${date}" style="width:100%;color:inherit;text-align:left"><b>${showDate(date)}</b><span style="float:right">${n} тиражей ›</span></button>`).join('')||'<p class="small">Архив пуст.</p>');
+ document.querySelectorAll('[data-archive-date]').forEach(b=>b.onclick=()=>renderArchiveDay(b.dataset.archiveDate))
+}
+function renderArchiveDay(date){
+ const day=draws.filter(d=>archiveDateKey(d)===normDate(date)).sort((a,b)=>archiveDateTimeValue(a)-archiveDateTimeValue(b));
+ if(!day.length){renderArchive();return}
  const blocks=[];let cur=[];
  day.forEach(d=>{if(cur.length&&minutes(d.time)-minutes(cur.at(-1).time)>30){blocks.push(cur);cur=[]}cur.push(d);if(cur.length===5){blocks.push(cur);cur=[]}});
- if(cur.length)blocks.push(cur);return blocks
-}
-function renderArchiveDate(date){
- const day=draws.filter(d=>normDate(d.date)===normDate(date));
- if(!day.length){$('archiveDetails').innerHTML='<div class="row small">За эту дату данных нет.</div>';return}
- const blocks=archiveDayBlocks(day);
- const blockHtml=blocks.map((b,i)=>{
+ if(cur.length)blocks.push(cur);
+ const chainsHtml=blocks.map((b,i)=>{
   const seq=b.map(d=>analysis(d).winner).join('–'),next=blocks[i+1],gap=next?minutes(next[0].time)-minutes(b.at(-1).time):0;
   return `<div class="chain"><div class="chain-top">${b[0].draw}–${b.at(-1).draw} | ${showDate(b[0].date)} | ${normTime(b[0].time)}–${normTime(b.at(-1).time)}</div><div class="seq">${seq}</div>${b.length===5&&gap>30?'<div class="break">☕ перерыв 1 час</div>':b.length<5?'<div class="open">Открытая цепочка</div>':''}</div>`
  }).join('');
- const drawHtml=day.slice().reverse().map(d=>{const a=analysis(d);return `<button class="row archive-draw" data-draw="${d.draw}" style="width:100%;color:inherit;text-align:left"><b>№${d.draw}</b><span style="float:right">🔴 ст${a.winner}</span><div class="small">${normTime(d.time)} · ${d.balls.map(pad).join(' ')}</div></button>`}).join('');
- $('archive').style.display='none';
- $('archiveDetails').innerHTML=`<button id="archiveBack" class="tool" style="width:100%;margin-bottom:10px">← Все даты</button><div class="section" style="margin-top:0"><span>📅 ${showDate(date)} · ${day.length} тиражей</span></div>${blockHtml}<div class="section"><span>Все тиражи дня</span></div>${drawHtml}`;
- $('archiveBack').onclick=()=>{$('archiveDetails').innerHTML='';$('archive').style.display='block'};
- document.querySelectorAll('.archive-draw').forEach(b=>b.onclick=()=>{const d=draws.find(x=>x.draw===Number(b.dataset.draw));if(!d)return;$('searchDraw').value=d.draw;$('searchResult').innerHTML=`<div class="row"><b>№${d.draw}</b> — ${showDate(d.date)} ${d.time}<br>${d.balls.map(pad).join(' ')}</div>`;$('searchPanel').classList.add('show');$('searchPanel').scrollIntoView({behavior:'smooth'})})
-}
-function renderArchive(){
- const m=new Map();draws.forEach(d=>m.set(d.date,(m.get(d.date)||0)+1));
- $('archive').style.display='block';$('archiveDetails').innerHTML='';
- $('archive').innerHTML=[...m.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([date,n])=>`<button class="row archive-date" data-date="${date}" style="width:100%;color:inherit;text-align:left"><b>${showDate(date)}</b><span style="float:right">${n} тиражей ›</span></button>`).join('')||'<p class="small">Архив пуст.</p>';
- document.querySelectorAll('.archive-date').forEach(b=>b.onclick=()=>renderArchiveDate(b.dataset.date))
+ const drawsHtml=day.map((d,idx)=>{
+  const a=analysis(d),parity=a.even===a.odd?'поровну':a.even>a.odd?'чёт':'нечёт';
+  return `<section class="card" style="margin:10px 0"><div class="head"><div><div class="draw">№${d.draw}</div><div class="time">${showDate(d.date)} ${normTime(d.time)}</div></div><div class="win">🔴 ст${a.winner}</div></div><div class="meta"><span>Σ ${a.sum}</span><span>${a.even}/${a.odd}</span><span>${parity}</span></div><div class="numbers">${d.balls.map(n=>`<div class="ball">${pad(n)}</div>`).join('')}</div><div class="notes">${a.single.length?`<span class="single">☝️ одиночные: ${a.single.map(x=>'ст'+x).join(', ')}</span>`:''}${a.single.length&&a.empty.length?' · ':''}${a.empty.length?`<span class="empty">${a.empty.map(x=>`ст${x} ☐ — пустой!`).join(' ')}</span>`:''}</div></section>`
+ }).join('');
+ $('archive').innerHTML=`<button type="button" id="archiveBack" class="tool" style="width:100%;margin-bottom:10px">← Все даты</button><div class="section" style="margin-top:0"><span>${showDate(date)} — ${day.length} тиражей</span></div>${chainsHtml}<div class="section"><span>Все тиражи дня</span></div>${drawsHtml}`;
+ $('archiveBack').onclick=renderArchive;
+ $('archivePanel').scrollIntoView({behavior:'smooth',block:'start'})
 }
 function winnerSeq(end,depth){
  const start=end-depth+1;if(start<0)return [];
@@ -418,7 +428,7 @@ function findAnalogs(){
  }).join('')
 }
 function render(){
- $('status').textContent=draws.length?`База: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v5.3 · база: 0';
+ $('status').textContent=draws.length?`База: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v5.2 · база: 0';
  if(draws.length&&!$('chainDate').value)$('chainDate').value=draws.at(-1).date;
  renderCards();renderChains();renderArchive()
 }
@@ -443,7 +453,7 @@ document.querySelectorAll('[data-foot]').forEach(b=>b.onclick=()=>{const p=$(b.d
 $('findAnalogsBtn').onclick=findAnalogs;
 $('findBtn').onclick=()=>{const n=Number($('searchDraw').value),d=draws.find(x=>x.draw===n);$('searchResult').innerHTML=d?`<div class="row"><b>№${d.draw}</b> — ${showDate(d.date)} ${d.time}<br>${d.balls.map(pad).join(' ')}</div>`:'<div class="row small">Тираж не найден.</div>'};
 $('importFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const added=merge(parse(r.result));render();$('status').textContent=`Импорт: добавлено ${added} · всего ${draws.length}`};r.readAsText(f,'UTF-8')};
-$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:'5.3',exportedAt:new Date().toISOString(),draws},null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='ПОЗИТРОН_КЕНО_v5_3_БАЗА.json';a.click();URL.revokeObjectURL(u)};
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:'5.2',exportedAt:new Date().toISOString(),draws},null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='ПОЗИТРОН_КЕНО_v5_2_БАЗА.json';a.click();URL.revokeObjectURL(u)};
 $('sync').onclick=update;$('sync2').onclick=update;
 $('settingsBtn').onclick=()=>{$('sourceUrl').value=localStorage.getItem('pozitron_v5_url')||'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws';$('interval').value=localStorage.getItem('pozitron_v5_interval')||'300000';$('settings').showModal()};
 $('saveSettings').onclick=()=>{localStorage.setItem('pozitron_v5_url',$('sourceUrl').value.trim());localStorage.setItem('pozitron_v5_interval',$('interval').value);auto()};
