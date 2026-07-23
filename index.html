@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08111f">
-<title>ПОЗИТРОН КЕНО v5.4</title>
+<title>ПОЗИТРОН КЕНО v5.5</title>
 <link rel="manifest" href="manifest.webmanifest">
 
 <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
@@ -63,6 +63,16 @@ button,input,select{font:inherit}
 .freq{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
 .freq span{border:1px solid #355273;background:#152a43;border-radius:999px;padding:4px 7px;font-size:12px}
 @media(min-width:620px){.analog-grid{grid-template-columns:repeat(4,1fr)}}
+.plus-title{font-size:13px;color:var(--muted);margin-top:10px}
+.plus-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:7px}
+.plus-col{background:#142942;border:1px solid #355576;border-radius:11px;padding:9px 3px;text-align:center}
+.plus-col b{display:block;font-size:20px;color:var(--gold)}
+.plus-col span{font-size:12px;color:#c7d5e5}
+.plus-numbers{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.plus-number{min-width:42px;text-align:center;background:#162d49;border:1px solid #3a5c7f;border-radius:9px;padding:7px 6px;font-weight:900}
+.plus-k5{background:#101f33;border:1px solid #2a4464;border-radius:10px;padding:9px;margin-top:7px;font-family:ui-monospace,Consolas,monospace;font-size:16px;font-weight:900;letter-spacing:.5px}
+@media(max-width:430px){.plus-cols{grid-template-columns:repeat(2,1fr)}}
+
 .flex{display:grid;grid-template-columns:1fr auto;gap:6px}
 input,select{width:100%;padding:9px;background:#0a1422;color:var(--text);border:1px solid var(--line);border-radius:9px}
 .small{font-size:12px;color:var(--muted);line-height:1.45}
@@ -79,8 +89,8 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
 <div class="app">
   <div class="top">
     <div>
-      <div class="brand">🎯 ПОЗИТРОН КЕНО v5.4</div>
-      <div id="status" class="sub">v5.2 · Аналоги в архиве · база загружается…</div>
+      <div class="brand">🎯 ПОЗИТРОН КЕНО v5.5</div>
+      <div id="status" class="sub">v5.5 · Аналоги+ · база загружается…</div>
     </div>
     <div>
       <button id="sync" class="icon">↻</button>
@@ -107,10 +117,10 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   <div class="section"><span>Инструменты</span></div>
   <div class="tools">
     <button class="tool" data-panel="searchPanel">🔍 Поиск</button>
-    <button class="tool" data-panel="analogsPanel">🧭 Аналоги</button>
+    <button class="tool" data-panel="analogsPanel">🧭 Аналоги+</button>
     <button class="tool" data-panel="archivePanel">📅 Архив</button>
     <button class="tool" data-panel="dataPanel">💾 База</button>
-    <button class="tool" data-panel="infoPanel">ℹ️ О v5.4</button>
+    <button class="tool" data-panel="infoPanel">ℹ️ О v5.5</button>
   </div>
 
   <section id="searchPanel" class="card panel">
@@ -123,35 +133,9 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
 
 
   <section id="analogsPanel" class="card panel">
-    <div class="label">🧭 АНАЛОГИ В АРХИВЕ</div>
-    <div class="small" style="margin-top:5px">Сравнение текущей ситуации со всем архивом. Программа показывает наиболее похожие случаи и победный столб следующего тиража.</div>
-    <div class="analog-grid">
-      <label class="small">Тираж-вход
-        <input id="analogDraw" inputmode="numeric" placeholder="последний">
-      </label>
-      <label class="small">Длина цепочки
-        <select id="analogDepth">
-          <option value="2">2 столба</option>
-          <option value="3" selected>3 столба</option>
-          <option value="4">4 столба</option>
-          <option value="5">5 столбов</option>
-        </select>
-      </label>
-      <label class="small">Режим
-        <select id="analogMode">
-          <option value="full" selected>Полный анализ</option>
-          <option value="fast">Быстрый</option>
-        </select>
-      </label>
-      <label class="small">Показать
-        <select id="analogLimit">
-          <option value="5">5 аналогов</option>
-          <option value="10" selected>10 аналогов</option>
-          <option value="20">20 аналогов</option>
-        </select>
-      </label>
-    </div>
-    <button id="findAnalogsBtn" class="tool" style="width:100%;margin-top:9px">Найти максимально похожие ситуации</button>
+    <div class="label">🧭 АНАЛОГИ+</div>
+    <div class="small" style="margin-top:5px">Один анализ по всей сохранённой базе: четыре столба, вероятные числа и две сборки К5.</div>
+    <button id="findAnalogsBtn" class="tool" style="width:100%;margin-top:10px;font-size:15px;padding:12px">⚡ Провести анализ</button>
     <div id="analogsResult"></div>
   </section>
 
@@ -168,14 +152,14 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   </section>
 
   <section id="infoPanel" class="card panel">
-    <p class="small">Версия v5.4: исправлено открытие дат в архиве; выбранная дата теперь открывается внутри раздела «Архив», а не переносит на сегодняшние цепочки. Модуль «Аналоги в архиве»  Он сравнивает цепочки победных столбов, числа, распределение по столбам, переходы, сумму, чётность, одиночные и пустые столбы, затем показывает, что вышло следующим тиражом в похожих случаях.</p>
+    <p class="small">Версия v5.5: добавлен модуль «Аналоги+». Одно нажатие запускает поиск по всей сохранённой базе и выдаёт готовый прогноз: четыре столба, вероятные числа и две сборки К5. Архив по датам, цепочки и часовые перерывы сохранены.</p>
   </section>
 </div>
 
 <div class="footer"><div class="footerin">
   <button onclick="scrollTo({top:0,behavior:'smooth'})"><b>⌂</b>Главная</button>
   <button data-foot="archivePanel"><b>▦</b>Архив</button>
-  <button data-foot="analogsPanel"><b>◎</b>Аналоги</button>
+  <button data-foot="analogsPanel"><b>◎</b>Аналоги+</button>
   <button id="sync2"><b>↻</b>Обновить</button>
 </div></div>
 
@@ -403,32 +387,60 @@ function similarity(targetEnd,candidateEnd,depth,mode){
  return {score:seq*.38+nums*.20+cols*.17+pass*.10+stats*.08+shape*.07,seq,nums,cols,pass,stats,shape}
 }
 function pct(x){return Math.round(x*100)+'%'}
-function findAnalogs(){
- if(draws.length<5){$('analogsResult').innerHTML='<div class="row small">В базе пока недостаточно тиражей.</div>';return}
- const requested=Number($('analogDraw').value),targetEnd=requested?draws.findIndex(d=>d.draw===requested):draws.length-1;
- const depth=Number($('analogDepth').value),limit=Number($('analogLimit').value),kind=$('analogMode').value;
- if(targetEnd<depth-1){$('analogsResult').innerHTML='<div class="row small">Для этого тиража не хватает предыдущих данных.</div>';return}
- const targetSeq=winnerSeq(targetEnd,depth),rows=[];
- for(let end=depth-1;end<draws.length-1;end++){
-  if(end===targetEnd||Math.abs(end-targetEnd)<depth)continue;
-  const s=similarity(targetEnd,end,depth,kind);
-  rows.push({end,next:end+1,...s})
+function weightedTopRows(targetEnd,limit=20){
+ const rows=[];
+ for(let end=4;end<draws.length-1;end++){
+  if(end===targetEnd||Math.abs(end-targetEnd)<5)continue;
+  const s2=similarity(targetEnd,end,2,'full');
+  const s3=similarity(targetEnd,end,3,'full');
+  const s4=similarity(targetEnd,end,4,'full');
+  const s5=similarity(targetEnd,end,5,'full');
+  const score=s2.score*.35+s3.score*.30+s4.score*.20+s5.score*.15;
+  rows.push({end,next:end+1,score});
  }
  rows.sort((a,b)=>b.score-a.score||draws[b.end].draw-draws[a.end].draw);
- const top=rows.slice(0,limit),freq=new Map();top.forEach(r=>{const w=analysis(draws[r.next]).winner;freq.set(w,(freq.get(w)||0)+1)});
- const freqHtml=[...freq.entries()].sort((a,b)=>b[1]-a[1]||a[0]-b[0]).map(([w,n])=>`<span>ст${w} — ${n}×</span>`).join('');
- const t=draws[targetEnd];
- $('analogsResult').innerHTML=`<div class="row"><b>Вход: №${t.draw}</b> · цепочка <b>${targetSeq.join('–')}</b><br><span class="small">Проверено исторических ситуаций: ${rows.length}. Ниже — лучшие совпадения.</span><div class="freq">${freqHtml||'<span>нет данных</span>'}</div></div>`+
- top.map((r,n)=>{
-  const d=draws[r.end],next=draws[r.next],seq=winnerSeq(r.end,depth),nw=analysis(next).winner;
-  const breakdown=kind==='fast'
-   ?`<span>цепочка ${pct(r.seq)}</span><span>столбы ${pct(r.cols)}</span><span>числа ${pct(r.nums)}</span>`
-   :`<span>цепочка ${pct(r.seq)}</span><span>числа ${pct(r.nums)}</span><span>столбы ${pct(r.cols)}</span><span>переходы ${pct(r.pass)}</span><span>Σ/чётность ${pct(r.stats)}</span><span>одиноч./пустые ${pct(r.shape)}</span>`;
-  return `<div class="analog-item"><div style="display:flex;justify-content:space-between;gap:8px"><div><b>${n+1}. №${d.draw}</b><div class="small">${showDate(d.date)} ${d.time}</div></div><div class="analog-score">${pct(r.score)}</div></div><div style="margin-top:6px">Цепочка: <b>${seq.join('–')}</b></div><div style="margin-top:4px">Следом №${next.draw}: <span class="analog-next">🔴 ст${nw}</span></div><div class="breakdown">${breakdown}</div></div>`
- }).join('')
+ return rows.slice(0,limit)
+}
+function findAnalogs(){
+ if(draws.length<12){$('analogsResult').innerHTML='<div class="row small">В базе пока недостаточно тиражей для анализа.</div>';return}
+ const targetEnd=draws.length-1,target=draws[targetEnd];
+ $('analogsResult').innerHTML='<div class="row small">Анализирую сохранённую базу…</div>';
+ setTimeout(()=>{
+  const top=weightedTopRows(targetEnd,20);
+  if(!top.length){$('analogsResult').innerHTML='<div class="row small">Подходящие исторические случаи не найдены.</div>';return}
+
+  const colWeight=new Map(),numWeight=new Map();
+  top.forEach((r,rank)=>{
+   const next=draws[r.next],w=analysis(next).winner;
+   const weight=Math.max(.05,r.score)*(1+(top.length-rank)/top.length*.20);
+   colWeight.set(w,(colWeight.get(w)||0)+weight);
+   next.balls.forEach(n=>numWeight.set(n,(numWeight.get(n)||0)+weight));
+  });
+
+  const colTotal=[...colWeight.values()].reduce((a,b)=>a+b,0)||1;
+  const cols=[...colWeight.entries()].sort((a,b)=>b[1]-a[1]||a[0]-b[0]).slice(0,4);
+  const nums=[...numWeight.entries()].sort((a,b)=>b[1]-a[1]||a[0]-b[0]).slice(0,10).map(x=>x[0]);
+  const k51=nums.slice(0,5),k52=nums.slice(5,10);
+  const maxScore=Math.round(top[0].score*100);
+  const nextDraw=Number(target.draw)+1;
+
+  const colsHtml=cols.map(([c,w],i)=>`<div class="plus-col"><span>${i+1} место</span><b>ст${c}</b><span>${Math.round(w/colTotal*100)}%</span></div>`).join('');
+  const numsHtml=nums.map(n=>`<span class="plus-number">${pad(n)}</span>`).join('');
+  $('analogsResult').innerHTML=`
+   <div class="row"><b>Прогноз на следующий тираж №${nextDraw}</b><br><span class="small">Найдено лучших аналогов: ${top.length} · максимальная похожесть: ${maxScore}%</span></div>
+   <div class="plus-title">Четыре основных столба</div>
+   <div class="plus-cols">${colsHtml}</div>
+   <div class="plus-title">Наиболее вероятные числа</div>
+   <div class="plus-numbers">${numsHtml}</div>
+   <div class="plus-title">Сборки К5</div>
+   <div class="plus-k5">${k51.map(pad).join(' · ')}</div>
+   <div class="plus-k5">${k52.map(pad).join(' · ')}</div>`;
+
+  localStorage.setItem('pozitron_v55_last_forecast',JSON.stringify({createdAt:new Date().toISOString(),targetDraw:nextDraw,columns:cols.map(x=>x[0]),numbers:nums,k5:[k51,k52],analogs:top.length,maxSimilarity:maxScore}));
+ },30)
 }
 function render(){
- $('status').textContent=draws.length?`База: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v5.2 · база: 0';
+ $('status').textContent=draws.length?`База: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v5.5 · база: 0';
  if(draws.length&&!$('chainDate').value)$('chainDate').value=draws.at(-1).date;
  renderCards();renderChains();renderArchive()
 }
@@ -453,7 +465,7 @@ document.querySelectorAll('[data-foot]').forEach(b=>b.onclick=()=>{const p=$(b.d
 $('findAnalogsBtn').onclick=findAnalogs;
 $('findBtn').onclick=()=>{const n=Number($('searchDraw').value),d=draws.find(x=>x.draw===n);$('searchResult').innerHTML=d?`<div class="row"><b>№${d.draw}</b> — ${showDate(d.date)} ${d.time}<br>${d.balls.map(pad).join(' ')}</div>`:'<div class="row small">Тираж не найден.</div>'};
 $('importFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const added=merge(parse(r.result));render();$('status').textContent=`Импорт: добавлено ${added} · всего ${draws.length}`};r.readAsText(f,'UTF-8')};
-$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:'5.2',exportedAt:new Date().toISOString(),draws},null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='ПОЗИТРОН_КЕНО_v5_2_БАЗА.json';a.click();URL.revokeObjectURL(u)};
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:'5.5',exportedAt:new Date().toISOString(),draws},null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='ПОЗИТРОН_КЕНО_v5_5_БАЗА.json';a.click();URL.revokeObjectURL(u)};
 $('sync').onclick=update;$('sync2').onclick=update;
 $('settingsBtn').onclick=()=>{$('sourceUrl').value=localStorage.getItem('pozitron_v5_url')||'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws';$('interval').value=localStorage.getItem('pozitron_v5_interval')||'300000';$('settings').showModal()};
 $('saveSettings').onclick=()=>{localStorage.setItem('pozitron_v5_url',$('sourceUrl').value.trim());localStorage.setItem('pozitron_v5_interval',$('interval').value);auto()};
