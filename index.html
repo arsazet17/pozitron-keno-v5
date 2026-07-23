@@ -66,7 +66,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   <div class="top">
     <div>
       <div class="brand">🎯 ПОЗИТРОН КЕНО v5</div>
-      <div id="status" class="sub">v5 автообновление · база загружается…</div>
+      <div id="status" class="sub">v5.1 · исправлено «Возрастание» · база загружается…</div>
     </div>
     <div>
       <button id="sync" class="icon">↻</button>
@@ -80,7 +80,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
     <button data-mode="both">Вместе</button>
   </div>
 
-  <div class="sub" style="margin:0 2px 8px">🔸 переход из предыдущего тиража · зелёная линия — одинаковое место в выпадении и возрастании</div>
+  <div class="sub" style="margin:0 2px 8px">🔸 реальное переходное число из предыдущего тиража · зелёная линия — одно и то же число стоит на одинаковом месте в выпадении и возрастании</div>
 
   <main id="cards"></main>
 
@@ -218,11 +218,29 @@ function load(){try{draws=dedupe(JSON.parse(localStorage.getItem('pozitron_v5_dr
 function merge(a){const before=draws.length;draws=dedupe([...draws,...a]);save();return draws.length-before}
 function transitions(i){if(i<=0)return new Set();return new Set(draws[i-1].balls.filter(n=>draws[i].balls.includes(n)))}
 function ball(d,i,p){
- const asc=[...d.balls].sort((a,b)=>a-b),n=d.balls[p],pass=transitions(i).has(n),same=n===asc[p];
- let text=pad(n)+(pass?'🔸':'');
- if(mode==='asc')text=pad(asc[p]);
- if(mode==='both')text=pad(n)+(pass?'🔸':'')+`(${pad(asc[p])})`;
- return `<div class="ball ${pass?'pass':''} ${same?'same':''}">${text}</div>`
+ const asc=[...d.balls].sort((a,b)=>a-b);
+ const fallNum=d.balls[p];
+ const ascNum=asc[p];
+ const passSet=transitions(i);
+
+ let shownNum=fallNum;
+ let text=pad(fallNum);
+ let isPass=passSet.has(fallNum);
+
+ if(mode==='asc'){
+  shownNum=ascNum;
+  text=pad(ascNum);
+  isPass=passSet.has(ascNum);
+ }
+
+ if(mode==='both'){
+  shownNum=fallNum;
+  text=pad(fallNum)+(passSet.has(fallNum)?'🔸':'')+`(${pad(ascNum)})`;
+  isPass=passSet.has(fallNum);
+ }
+
+ const same=fallNum===ascNum;
+ return `<div class="ball ${isPass?'pass':''} ${same?'same':''}">${mode==='both'?text:text+(isPass?'🔸':'')}</div>`
 }
 function card(d,i,label){
  const a=analysis(d),parity=a.even===a.odd?'поровну':a.even>a.odd?'чёт':'нечёт';
