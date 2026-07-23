@@ -1,223 +1,289 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ПОЗИТРОН КЕНО v4</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08111f">
+<title>ПОЗИТРОН КЕНО v5</title>
+<link rel="manifest" href="manifest.webmanifest">
 <style>
-:root{--bg:#09111f;--panel:#121d30;--panel2:#192741;--text:#f4f7ff;--muted:#9fb0ca;--line:#2b3d5d;--green:#4ade80;--blue:#60a5fa;--red:#fb7185;--gold:#fde68a}
-*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(145deg,#07101d,#101b30);color:var(--text)}
-.wrap{max-width:1180px;margin:auto;padding:14px}.card{background:rgba(18,29,48,.97);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:12px}
-h1{font-size:26px;margin:0 0 4px}h2,h3{margin:0 0 12px}.muted,.note{color:var(--muted);line-height:1.45}.label{color:var(--muted);font-size:14px}
-.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
-button,.filebtn{border:0;border-radius:12px;padding:13px 17px;font-weight:800;font-size:16px;cursor:pointer;background:var(--blue);color:#07172c}
-button.secondary{background:#34445b;color:#fff}button.danger{background:var(--red);color:#2d0710}.filebtn{background:var(--green);color:#062411}input[type=file]{display:none}
-input,select{width:100%;background:#0a1425;color:#fff;border:1px solid var(--line);border-radius:11px;padding:12px;font-size:16px}
-.status{background:#0a1425;color:var(--muted);padding:12px;border-radius:12px;margin-top:10px}.big{font-size:34px;font-weight:800;margin-top:5px}
-.draw-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.draw-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
-.draw-title{font-size:25px;font-weight:800;margin-bottom:10px}.fact{font-size:18px;line-height:1.6}.lucky{font-size:17px;line-height:1.75;word-break:break-word}.winner{color:var(--green);font-weight:800}.empty{color:var(--red);font-weight:700}
-.chain-list{display:grid;gap:12px}.chain{border:1px solid var(--line);border-radius:15px;overflow:hidden;background:#0d182a}.chain-main{padding:15px;background:var(--panel2);font-size:20px;font-weight:800;line-height:1.4}.break{padding:14px;text-align:center;background:#251f11;color:var(--gold);font-size:20px;font-weight:800}
-.filters{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.results{display:grid;gap:10px}.result{background:#0d182a;border:1px solid var(--line);border-radius:12px;padding:12px}
-@media(max-width:850px){.draw-grid{grid-template-columns:1fr}.filters{grid-template-columns:1fr 1fr}.wrap{padding:10px}}
-@media(max-width:520px){.filters{grid-template-columns:1fr}.draw-title{font-size:22px}.fact{font-size:16px}.lucky{font-size:15px}.chain-main{font-size:17px}}
+:root{
+ --bg:#07111f;--panel:#0e1b2d;--panel2:#13243a;--line:#29415f;
+ --text:#f4f8ff;--muted:#96a9c1;--accent:#63a9ff;--gold:#ffd35c;
+ --green:#72df95;--red:#ff7d86;--coffee:#f0c45a
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+body{min-height:100vh;background:linear-gradient(180deg,#07111f 0%,#0a1728 45%,#07111f 100%)}
+button,input,select{font:inherit}
+.app{max-width:760px;margin:auto;padding:10px 10px 92px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+.brand{font-size:21px;font-weight:900;letter-spacing:.2px}
+.sub{font-size:12px;color:var(--muted);margin-top:2px}
+.icon{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:18px}
+.mode{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:8px 0}
+.mode button{padding:8px 3px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:13px}
+.mode button.on{background:#254b78;border-color:#5b8fc9;font-weight:800}
+.card{background:rgba(14,27,45,.98);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px;box-shadow:0 5px 18px rgba(0,0,0,.18)}
+.head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.75px;color:var(--muted);font-weight:850}
+.draw{font-size:20px;font-weight:950;margin-top:1px}
+.time{font-size:12px;color:#cad7e6;margin-top:2px}
+.win{font-size:17px;font-weight:950;color:var(--gold);white-space:nowrap}
+.meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.meta span{font-size:12px;border:1px solid #2a4160;background:#14253b;border-radius:999px;padding:3px 7px}
+.numbers{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:8px}
+.ball{min-width:0;text-align:center;border:1px solid #304b6d;background:#172a43;border-radius:8px;padding:7px 1px;font-family:ui-monospace,Consolas,monospace;font-weight:900;font-size:14px;white-space:nowrap}
+.ball.pass{border-color:#d89b3e;background:#362816}
+.ball.same{box-shadow:inset 0 -2px 0 var(--green)}
+.notes{font-size:12px;line-height:1.45;margin-top:7px}
+.single{color:#ffe18b}.empty{color:#ffadb4}
+.section{display:flex;align-items:center;justify-content:space-between;margin:13px 2px 7px;font-weight:950}
+.section input{width:145px;padding:6px;background:#0b1625;color:var(--text);border:1px solid var(--line);border-radius:8px}
+.chain{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px;margin-bottom:7px}
+.chain-top{font-size:13px;font-weight:800}
+.seq{font-size:19px;font-weight:950;color:#8eedaa;letter-spacing:1px;margin-top:5px}
+.break{margin-top:7px;padding:6px;border-radius:8px;text-align:center;background:#302812;border:1px solid #6e5b20;color:#ffe48b;font-weight:850}
+.open{font-size:12px;color:var(--muted);margin-top:6px}
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.tool{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:9px;padding:9px 3px;font-size:12px;font-weight:800}
+.panel{display:none}.panel.show{display:block}
+.row{background:#101f33;border:1px solid #263e5b;border-radius:9px;padding:9px;margin-top:6px;font-size:13px}
+.flex{display:grid;grid-template-columns:1fr auto;gap:6px}
+input,select{width:100%;padding:9px;background:#0a1422;color:var(--text);border:1px solid var(--line);border-radius:9px}
+.small{font-size:12px;color:var(--muted);line-height:1.45}
+.footer{position:fixed;left:0;right:0;bottom:0;background:rgba(5,12,21,.96);border-top:1px solid var(--line);backdrop-filter:blur(9px);padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+.footerin{max-width:760px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.footer button{border:0;background:transparent;color:#bccbdb;padding:5px 2px;font-size:11px}
+.footer b{display:block;font-size:18px}
+dialog{width:calc(100% - 20px);max-width:700px;background:#0e1b2d;color:var(--text);border:1px solid var(--line);border-radius:14px;padding:12px}
+dialog::backdrop{background:rgba(0,0,0,.72)}
+@media(min-width:620px){.numbers{grid-template-columns:repeat(10,1fr)}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🎯 ПОЗИТРОН КЕНО v4</h1>
-  <div class="muted" style="margin-bottom:14px">Чистая рабочая версия без старых дублей кода.</div>
-
-  <section class="card">
-    <div class="toolbar">
-      <label class="filebtn">📂 Загрузить CSV<input id="fileInput" type="file" accept=".csv,text/csv"></label>
-      <button class="secondary" id="saveBtn">💾 Сохранить базу</button>
-      <button class="secondary" id="loadBtn">↩️ Открыть сохранённую</button>
-      <button class="danger" id="clearBtn">Очистить</button>
+<div class="app">
+  <div class="top">
+    <div>
+      <div class="brand">🎯 ПОЗИТРОН КЕНО v5</div>
+      <div id="status" class="sub">Настоящая версия v5 · база загружается…</div>
     </div>
-    <div id="status" class="status">Готово к загрузке базы.</div>
+    <div>
+      <button id="sync" class="icon">↻</button>
+      <button id="settingsBtn" class="icon">⚙</button>
+    </div>
+  </div>
+
+  <div class="mode">
+    <button class="on" data-mode="fall">Выпадение</button>
+    <button data-mode="asc">Возрастание</button>
+    <button data-mode="both">Вместе</button>
+  </div>
+
+  <main id="cards"></main>
+
+  <div class="section">
+    <span>⛓ Цепочки столбов</span>
+    <input id="chainDate" type="date">
+  </div>
+  <div id="chains"></div>
+
+  <div class="section"><span>Инструменты</span></div>
+  <div class="tools">
+    <button class="tool" data-panel="searchPanel">🔍 Поиск</button>
+    <button class="tool" data-panel="archivePanel">📅 Архив</button>
+    <button class="tool" data-panel="dataPanel">💾 База</button>
+    <button class="tool" data-panel="infoPanel">ℹ️ О v5</button>
+  </div>
+
+  <section id="searchPanel" class="card panel">
+    <div class="flex">
+      <input id="searchDraw" inputmode="numeric" placeholder="Номер тиража">
+      <button id="findBtn" class="tool">Найти</button>
+    </div>
+    <div id="searchResult"></div>
   </section>
 
-  <section class="card">
-    <h3>🔄 Автообновление Lucky Numbers</h3>
-    <div class="filters" style="grid-template-columns:1fr auto auto">
-      <input id="luckyUrl" type="url" value="https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws">
-      <button id="updateBtn">Обновить сейчас</button>
-      <button class="secondary" id="autoBtn">Авто: выкл.</button>
-    </div>
+  <section id="archivePanel" class="card panel">
+    <div id="archive"></div>
   </section>
 
-  <section class="grid">
-    <div class="card"><div class="label">Тиражей</div><div id="count" class="big">0</div></div>
-    <div class="card"><div class="label">Первый тираж</div><div id="first" class="big">—</div></div>
-    <div class="card"><div class="label">Последний тираж</div><div id="last" class="big">—</div></div>
-    <div class="card"><div class="label">Победный столб последнего</div><div id="lastWinner" class="big">—</div></div>
+  <section id="dataPanel" class="card panel">
+    <div class="tools" style="grid-template-columns:1fr 1fr">
+      <label class="tool" style="text-align:center">📂 Импорт CSV/JSON<input id="importFile" type="file" accept=".csv,.json" hidden></label>
+      <button id="exportBtn" class="tool">⬇️ Экспорт базы</button>
+    </div>
+    <p class="small">Импорт добавляет новые тиражи без дублей. Экспорт сохраняет всю локальную базу одним JSON-файлом.</p>
   </section>
 
-  <section class="draw-grid" id="topCards"></section>
-
-  <section class="card">
-    <h3>⛓️ Цепочки столбов</h3>
-    <div class="filters" style="grid-template-columns:minmax(180px,280px) 1fr">
-      <input id="chainDate" type="date">
-      <div class="note">Цепочки строятся по фактическим часовым блокам и внутри блока идут строго по 5 тиражей.</div>
-    </div>
-    <div id="chainSummary" class="status"></div>
-    <div id="chains" class="chain-list" style="margin-top:12px"></div>
-  </section>
-
-  <section class="card">
-    <h3>🔎 Поиск тиражей</h3>
-    <div class="filters">
-      <select id="filterColumn"><option value="">Все столбы</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select>
-      <input id="filterDraw" type="number" placeholder="Номер тиража">
-      <input id="combo" placeholder="Числа: 03 17 44">
-      <select id="comboMode"><option value="all">Все числа</option><option value="any">Хотя бы одно</option></select>
-      <select id="limit"><option>20</option><option>50</option><option>100</option><option>500</option></select>
-    </div>
-    <div class="toolbar" style="margin-top:10px"><button id="findBtn">Найти</button><button class="secondary" id="resetBtn">Сбросить</button></div>
-    <div id="results" class="results" style="margin-top:12px"></div>
+  <section id="infoPanel" class="card panel">
+    <p class="small">Главный экран v5: три последних тиража, переходы прямо на числах, переключатель «Выпадение / Возрастание / Вместе», цепочки по пятёркам и постоянный архив.</p>
   </section>
 </div>
 
+<div class="footer"><div class="footerin">
+  <button onclick="scrollTo({top:0,behavior:'smooth'})"><b>⌂</b>Главная</button>
+  <button data-foot="archivePanel"><b>▦</b>Архив</button>
+  <button data-foot="searchPanel"><b>⌕</b>Поиск</button>
+  <button id="sync2"><b>↻</b>Обновить</button>
+</div></div>
+
+<dialog id="settings">
+  <form method="dialog">
+    <div class="section" style="margin-top:0"><span>Настройки обновления</span><button class="icon">✕</button></div>
+    <label class="small">Адрес источника тиражей</label>
+    <input id="sourceUrl" value="">
+    <div style="height:8px"></div>
+    <label class="small">Проверять автоматически</label>
+    <select id="interval">
+      <option value="0">Выключено</option>
+      <option value="300000">Каждые 5 минут</option>
+      <option value="600000">Каждые 10 минут</option>
+      <option value="1800000">Каждые 30 минут</option>
+    </select>
+    <div style="height:8px"></div>
+    <button id="saveSettings" class="tool" style="width:100%">Сохранить</button>
+    <p class="small">На GitHub Pages приложение хранит базу в браузере телефона. Для надёжности периодически нажимайте «Экспорт базы».</p>
+  </form>
+</dialog>
+
 <script>
 'use strict';
-let draws=[];
-let autoTimer=null;
-
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
-const col=n=>n%10===0?10:n%10;
+const column=n=>n%10===0?10:n%10;
+let draws=[],mode='fall',timer=null;
 
-function parseCSVLine(line){
-  const out=[];let cur='';let q=false;
-  for(let i=0;i<line.length;i++){
-    const ch=line[i];
-    if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}
-    else if(ch===','&&!q){out.push(cur.trim());cur=''}
-    else cur+=ch;
-  }
-  out.push(cur.trim());return out;
+function normDate(v){
+ v=String(v||'').trim();
+ let m=v.match(/^(\d{2})[.\-/](\d{2})[.\-/](\d{4})$/);
+ if(m)return `${m[3]}-${m[2]}-${m[1]}`;
+ m=v.match(/^(\d{4})[.\-/](\d{2})[.\-/](\d{2})$/);
+ if(m)return `${m[1]}-${m[2]}-${m[3]}`;
+ return v.slice(0,10);
 }
-function parseCSV(text){
-  const lines=String(text).replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim());
-  const out=[];
-  for(let i=0;i<lines.length;i++){
-    const p=parseCSVLine(lines[i]); let draw,date,time,balls;
-    if(i===0&&p.some(x=>/дата|date|номер тиража|draw/i.test(x)))continue;
-    if(p.length>=23&&Number.isFinite(Number(p[0]))){draw=Number(p[0]);date=p[1];time=p[2];balls=p.slice(3,23).map(Number)}
-    else if(p.length>=24&&Number.isFinite(Number(p[3]))){date=p[1];time=p[2];draw=Number(p[3]);balls=p.slice(4,24).map(Number)}
-    if(Number.isFinite(draw)&&balls&&balls.length===20&&balls.every(Number.isFinite))out.push({draw,date:String(date||'').trim(),time:String(time||'').trim(),balls});
-  }
-  const m=new Map();out.forEach(d=>m.set(d.draw,d));return [...m.values()].sort((a,b)=>a.draw-b.draw);
+function showDate(v){const p=normDate(v).split('-');return p.length===3?`${p[2]}.${p[1]}.${p[0]}`:v}
+function normTime(v){return String(v||'').match(/\d{1,2}:\d{2}(?::\d{2})?/)?.[0]||String(v||'')}
+function valid(o){
+ const draw=Number(o.draw??o.number??o.drawNumber??o.id);
+ const date=normDate(o.date??o.drawDate??o.datetime??'');
+ const time=normTime(o.time??o.drawTime??o.datetime??'');
+ let balls=o.balls??o.numbers??o.results??o.result??o.winningNumbers;
+ if(typeof balls==='string')balls=(balls.match(/\d+/g)||[]).map(Number);
+ balls=(balls||[]).map(Number).slice(0,20);
+ return Number.isFinite(draw)&&balls.length===20&&balls.every(n=>n>=1&&n<=80)?{draw,date,time,balls}:null;
 }
-function mergeDraws(incoming){
-  const m=new Map(draws.map(d=>[d.draw,d]));incoming.forEach(d=>m.set(d.draw,d));draws=[...m.values()].sort((a,b)=>a.draw-b.draw);
+function walk(o,out=[]){
+ if(Array.isArray(o)){o.forEach(x=>walk(x,out));return out}
+ if(o&&typeof o==='object'){
+  const d=valid(o); if(d)out.push(d);
+  else Object.values(o).forEach(v=>{if(v&&typeof v==='object')walk(v,out)})
+ }
+ return out
 }
-function normalizeDate(s){
-  const a=String(s||'').trim().split(/[.\-/]/);if(a.length!==3)return String(s||'');
-  if(a[0].length===4)return `${a[0]}-${a[1].padStart(2,'0')}-${a[2].padStart(2,'0')}`;
-  let y=a[2];if(y.length===2)y='20'+y;return `${y}-${a[1].padStart(2,'0')}-${a[0].padStart(2,'0')}`;
+function csvLine(s){
+ const a=[];let cur='',q=false;
+ for(let i=0;i<s.length;i++){const c=s[i];if(c==='"')q=!q;else if((c===','||c===';')&&!q){a.push(cur.trim());cur=''}else cur+=c}
+ a.push(cur.trim());return a
 }
-function displayDate(s){
-  const n=normalizeDate(s).split('-');return n.length===3?`${n[2]}.${n[1]}.${n[0]}`:s;
+function parse(text){
+ text=String(text||'').replace(/^\uFEFF/,'').trim();
+ if(!text)return [];
+ try{return dedupe(walk(JSON.parse(text)))}catch{}
+ const out=[],lines=text.split(/\r?\n/).filter(Boolean);
+ lines.forEach((line,i)=>{
+  const p=csvLine(line);if(i===0&&p.some(x=>/тираж|draw|date|дата/i.test(x)))return;
+  let d=null;
+  if(p.length>=23)d=valid({draw:p[0],date:p[1],time:p[2],balls:p.slice(3,23)});
+  if(!d&&p.length>=24)d=valid({date:p[1],time:p[2],draw:p[3],balls:p.slice(4,24)});
+  if(d)out.push(d)
+ });
+ return dedupe(out)
 }
-function normalizeTime(s){const m=String(s||'').match(/(\d{1,2}):(\d{2})/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''}
-function minutes(s){const [h,m]=normalizeTime(s).split(':').map(Number);return Number.isFinite(h)&&Number.isFinite(m)?h*60+m:-1}
-function analyze(d){
-  const counts=Array(11).fill(0),reached=Array(11).fill(999);
-  d.balls.forEach(n=>counts[col(n)]++);const max=Math.max(...counts.slice(1));
-  d.balls.forEach((n,i)=>{const c=col(n);if(counts[c]===max&&reached[c]===999){let seen=0;for(let j=0;j<=i;j++)if(col(d.balls[j])===c)seen++;if(seen===max)reached[c]=i}});
-  let winner=1;for(let c=2;c<=10;c++)if(counts[c]>counts[winner]||(counts[c]===counts[winner]&&reached[c]<reached[winner]))winner=c;
-  const even=d.balls.filter(n=>n%2===0).length,empty=[];for(let c=1;c<=10;c++)if(counts[c]===0)empty.push(c);
-  return {counts,winner,even,odd:20-even,sum:d.balls.reduce((a,b)=>a+b,0),empty};
+function dedupe(a){const m=new Map();a.forEach(d=>m.set(Number(d.draw),d));return [...m.values()].sort((x,y)=>x.draw-y.draw)}
+function analysis(d){
+ const count=Array(11).fill(0),reach=Array(11).fill(999);
+ d.balls.forEach(n=>count[column(n)]++);
+ const max=Math.max(...count.slice(1));
+ for(let c=1;c<=10;c++)if(count[c]===max){let seen=0;for(let i=0;i<20;i++){if(column(d.balls[i])===c)seen++;if(seen===max){reach[c]=i;break}}}
+ let winner=1;for(let c=2;c<=10;c++)if(count[c]>count[winner]||(count[c]===count[winner]&&reach[c]<reach[winner]))winner=c;
+ const even=d.balls.filter(n=>n%2===0).length,odd=20-even,sum=d.balls.reduce((a,b)=>a+b,0),empty=[],single=[];
+ for(let c=1;c<=10;c++){if(count[c]===0)empty.push(c);if(count[c]===1)single.push(c)}
+ return {winner,even,odd,sum,empty,single}
 }
-function balance(a){return a.even===a.odd?'поровну':a.even>a.odd?'больше чётных':'больше нечётных'}
-
-function formatDetailed(draw,previous){
-  if(!draw)return '<div class="note">Нет данных</div>';
-  const a=analyze(draw),sorted=[...draw.balls].sort((x,y)=>x-y),prev=new Set(previous?.balls||[]);
-  const lucky=draw.balls.map((n,i)=>{
-    const transition=prev.has(n)?'🔸':'';
-    const single=a.counts[col(n)]===1?'☝️':'';
-    const same=n===sorted[i]?'📍':'';
-    return `${pad(n)}${transition}${single}(${pad(sorted[i])})${same}`;
-  }).join('. ')+'.';
-  const winnerNums=draw.balls.filter(n=>col(n)===a.winner).map(n=>`${pad(n)}${prev.has(n)?'🔸':''}${a.counts[col(n)]===1?'☝️':''}`);
-  const emptyText=a.empty.length?`<br><span class="empty">Пустые: ${a.empty.map(x=>'ст'+x).join(', ')}</span>`:'';
-  return `<div class="fact">✅ ${draw.draw} — ${displayDate(draw.date)} ${draw.time} 🔴ст${a.winner}, ${balance(a)}; числа:<br>${draw.balls.map(pad).join(' ')}<br>Сумма ${a.sum}. Чётных ${a.even} / нечётных ${a.odd}.${emptyText}</div>
-  <div class="lucky"><b>Lucky Numbers</b><br>${lucky}<br><br><b>Числа победного ст${a.winner}:</b><br>${winnerNums.join(', ')} — ${winnerNums.length} числа.</div>`;
+function save(){localStorage.setItem('pozitron_v5_draws',JSON.stringify(draws))}
+function load(){try{draws=dedupe(JSON.parse(localStorage.getItem('pozitron_v5_draws')||'[]'))}catch{draws=[]}}
+function merge(a){const before=draws.length;draws=dedupe([...draws,...a]);save();return draws.length-before}
+function transitions(i){if(i<=0)return new Set();return new Set(draws[i-1].balls.filter(n=>draws[i].balls.includes(n)))}
+function ball(d,i,p){
+ const asc=[...d.balls].sort((a,b)=>a-b),n=d.balls[p],pass=transitions(i).has(n),same=n===asc[p];
+ let text=pad(n)+(pass?'🔸':'');
+ if(mode==='asc')text=pad(asc[p]);
+ if(mode==='both')text=pad(n)+(pass?'🔸':'')+`(${pad(asc[p])})`;
+ return `<div class="ball ${pass?'pass':''} ${same?'same':''}">${text}</div>`
 }
-function card(title,draw,previous){return `<article class="draw-card"><div class="draw-title">${title}</div>${formatDetailed(draw,previous)}</article>`}
-
-function render(){
-  $('count').textContent=draws.length.toLocaleString('ru-RU');
-  if(!draws.length){
-    $('first').textContent=$('last').textContent=$('lastWinner').textContent='—';
-    $('topCards').innerHTML=card('Последний тираж',null)+card('Предыдущий тираж',null)+card('Предпредыдущий тираж',null);
-    $('chains').innerHTML='';$('chainSummary').textContent='Загрузите базу.';$('results').innerHTML='';return;
-  }
-  const latest=draws.at(-1),previous=draws.at(-2),before=draws.at(-3),fourth=draws.at(-4);
-  $('first').textContent=draws[0].draw;$('last').textContent=latest.draw;$('lastWinner').textContent='ст'+analyze(latest).winner;
-  $('topCards').innerHTML=card('Последний тираж',latest,previous)+card('Предыдущий тираж',previous,before)+card('Предпредыдущий тираж',before,fourth);
-  if(!$('chainDate').value)$('chainDate').value=normalizeDate(latest.date);
-  renderChains();renderResults(draws.slice(-20).reverse());
+function card(d,i,label){
+ const a=analysis(d),parity=a.even===a.odd?'поровну':a.even>a.odd?'чёт':'нечёт';
+ return `<section class="card">
+  <div class="head"><div><div class="label">${label}</div><div class="draw">№${d.draw}</div><div class="time">${showDate(d.date)} ${normTime(d.time)}</div></div><div class="win">🔴 ст${a.winner}</div></div>
+  <div class="meta"><span>Σ ${a.sum}</span><span>${a.even}/${a.odd}</span><span>${parity}</span></div>
+  <div class="numbers">${d.balls.map((_,p)=>ball(d,i,p)).join('')}</div>
+  <div class="notes">${a.single.length?`<span class="single">☝️ одиночные: ${a.single.map(x=>'ст'+x).join(', ')}</span>`:''}${a.single.length&&a.empty.length?' · ':''}${a.empty.length?`<span class="empty">${a.empty.map(x=>`ст${x} ☐ — пустой!`).join(' ')}</span>`:''}</div>
+ </section>`
 }
-function getDayDraws(date){return draws.filter(d=>normalizeDate(d.date)===date&&minutes(d.time)>=17).sort((a,b)=>a.draw-b.draw)}
-function splitChains(day){
-  const groups=[];let current=[];
-  day.forEach(d=>{
-    if(current.length&&minutes(d.time)-minutes(current.at(-1).time)>30){groups.push(current);current=[]}
-    current.push(d);
-  });
-  if(current.length)groups.push(current);
-  const chains=[];groups.forEach(g=>{for(let i=0;i<g.length;i+=5)chains.push(g.slice(i,i+5))});return chains;
+function renderCards(){
+ if(!draws.length){$('cards').innerHTML='<section class="card small"><b>ПОЗИТРОН КЕНО v5 запущен.</b><br>База пока пустая. Откройте «База» и импортируйте CSV/JSON либо настройте источник обновления через ⚙.</section>';return}
+ const labels=['Последний тираж','Предыдущий тираж','Предпредыдущий тираж'];
+ $('cards').innerHTML=[0,1,2].filter(k=>draws.length-1-k>=0).map(k=>card(draws.at(-1-k),draws.length-1-k,labels[k])).join('')
 }
+function minutes(t){const m=normTime(t).match(/(\d+):(\d+)/);return m?+m[1]*60 + +m[2]:0}
 function renderChains(){
-  if(!draws.length)return;
-  const date=$('chainDate').value,day=getDayDraws(date),chains=splitChains(day);
-  $('chainSummary').innerHTML=`Дата: <b>${date}</b> · тиражей: <b>${day.length}</b> · цепочек: <b>${chains.length}</b>`;
-  $('chains').innerHTML=chains.map((ch,i)=>{
-    const first=ch[0],last=ch.at(-1),seq=ch.map(d=>analyze(d).winner).join('-'),closed=ch.length===5;
-    const next=chains[i+1],realBreak=next&&minutes(next[0].time)-minutes(last.time)>30;
-    return `<div class="chain"><div class="chain-main">${first.draw}–${last.draw} | ${displayDate(first.date)} ${normalizeTime(first.time)}–${normalizeTime(last.time)} | цепочка: ${seq}</div>${closed&&realBreak?'<div class="break">☕ перерыв 1 час</div>':!closed?'<div class="break">Открытая цепочка — ожидаются следующие тиражи</div>':''}</div>`;
-  }).join('')||'<div class="status">На эту дату тиражи не найдены.</div>';
+ const date=$('chainDate').value||draws.at(-1)?.date||'',day=draws.filter(d=>normDate(d.date)===normDate(date));
+ if(!day.length){$('chains').innerHTML='<div class="card small">За выбранную дату данных нет.</div>';return}
+ const blocks=[];let cur=[];
+ day.forEach(d=>{if(cur.length&&minutes(d.time)-minutes(cur.at(-1).time)>30){blocks.push(cur);cur=[]}cur.push(d);if(cur.length===5){blocks.push(cur);cur=[]}});
+ if(cur.length)blocks.push(cur);
+ $('chains').innerHTML=blocks.map((b,i)=>{
+  const seq=b.map(d=>analysis(d).winner).join('–'),next=blocks[i+1],gap=next?minutes(next[0].time)-minutes(b.at(-1).time):0;
+  return `<div class="chain"><div class="chain-top">${b[0].draw}–${b.at(-1).draw} | ${showDate(b[0].date)} | ${normTime(b[0].time)}–${normTime(b.at(-1).time)}</div><div class="seq">${seq}</div>${b.length===5&&gap>30?'<div class="break">☕ перерыв 1 час</div>':b.length<5?'<div class="open">Открытая цепочка</div>':''}</div>`
+ }).join('')
 }
-function renderResults(arr){
-  const limit=Number($('limit').value||20);
-  $('results').innerHTML=arr.slice(0,limit).map(d=>{const a=analyze(d);return `<div class="result"><b>№${d.draw}</b> — ${displayDate(d.date)} ${normalizeTime(d.time)} · <span class="winner">ст${a.winner}</span><br>${d.balls.map(pad).join(' ')}</div>`}).join('')||'<div class="status">Ничего не найдено.</div>';
+function renderArchive(){
+ const m=new Map();draws.forEach(d=>m.set(d.date,(m.get(d.date)||0)+1));
+ $('archive').innerHTML=[...m.entries()].sort((a,b)=>b[0].localeCompare(a[0])).map(([date,n])=>`<button class="row" data-date="${date}" style="width:100%;color:inherit;text-align:left"><b>${showDate(date)}</b><span style="float:right">${n} тиражей ›</span></button>`).join('')||'<p class="small">Архив пуст.</p>';
+ document.querySelectorAll('[data-date]').forEach(b=>b.onclick=()=>{$('chainDate').value=b.dataset.date;renderChains();$('chains').scrollIntoView({behavior:'smooth'})})
 }
-function applyFilters(){
-  const c=Number($('filterColumn').value)||0,no=Number($('filterDraw').value)||0,nums=($('combo').value.match(/\d+/g)||[]).map(Number),mode=$('comboMode').value;
-  const arr=draws.filter(d=>{
-    if(c&&analyze(d).winner!==c)return false;if(no&&d.draw!==no)return false;
-    if(nums.length&&mode==='all'&&!nums.every(n=>d.balls.includes(n)))return false;
-    if(nums.length&&mode==='any'&&!nums.some(n=>d.balls.includes(n)))return false;return true;
-  }).reverse();renderResults(arr);
+function render(){
+ $('status').textContent=draws.length?`База: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Настоящая версия v5 · база: 0';
+ if(draws.length&&!$('chainDate').value)$('chainDate').value=draws.at(-1).date;
+ renderCards();renderChains();renderArchive()
 }
-async function updateFromLucky(){
-  const url=$('luckyUrl').value.trim();if(!url){$('status').textContent='Укажите URL.';return}
-  localStorage.setItem('kenoLuckyUrl',url);$('status').textContent='Загрузка обновления...';
-  try{
-    const res=await fetch(url,{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);
-    const incoming=parseCSV(await res.text());if(!incoming.length)throw new Error('нет корректных тиражей');
-    const before=draws.length;mergeDraws(incoming);localStorage.setItem('kenoDraws',JSON.stringify(draws));
-    $('status').textContent=`Обновлено. Было ${before}, стало ${draws.length} тиражей.`;render();
-  }catch(e){$('status').textContent='Обновление не выполнено: '+e.message}
+async function update(){
+ const url=(localStorage.getItem('pozitron_v5_url')||'').trim();
+ if(!url){$('status').textContent='Источник не настроен — нажмите ⚙';return}
+ $('status').textContent='Проверяю новые тиражи…';
+ try{
+  const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);
+  const arr=parse(await r.text());if(!arr.length)throw new Error('нет распознанных тиражей');
+  const added=merge(arr);render();$('status').textContent=`Добавлено ${added} · всего ${draws.length}`
+ }catch(e){render();$('status').textContent='Обновление не выполнено: '+e.message}
 }
-$('fileInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{draws=parseCSV(r.result);$('status').textContent=`Загружено ${draws.length} тиражей.`;render()};r.readAsText(f,'UTF-8')});
-$('saveBtn').onclick=()=>{localStorage.setItem('kenoDraws',JSON.stringify(draws));$('status').textContent='База сохранена.'};
-$('loadBtn').onclick=()=>{try{draws=JSON.parse(localStorage.getItem('kenoDraws')||'[]');render();$('status').textContent='Сохранённая база открыта.'}catch(e){$('status').textContent='Сохранённая база повреждена.'}};
-$('clearBtn').onclick=()=>{draws=[];localStorage.removeItem('kenoDraws');render();$('status').textContent='База очищена.'};
-$('updateBtn').onclick=updateFromLucky;
-$('autoBtn').onclick=()=>{if(autoTimer){clearInterval(autoTimer);autoTimer=null;$('autoBtn').textContent='Авто: выкл.';localStorage.setItem('kenoAuto','0')}else{autoTimer=setInterval(updateFromLucky,300000);$('autoBtn').textContent='Авто: вкл.';localStorage.setItem('kenoAuto','1');updateFromLucky()}};
-$('chainDate').onchange=renderChains;$('findBtn').onclick=applyFilters;$('resetBtn').onclick=()=>{$('filterColumn').value='';$('filterDraw').value='';$('combo').value='';renderResults(draws.slice().reverse())};$('limit').onchange=applyFilters;
-
-(function init(){
-  $('luckyUrl').value=localStorage.getItem('kenoLuckyUrl')||$('luckyUrl').value;
-  try{draws=JSON.parse(localStorage.getItem('kenoDraws')||'[]')}catch(e){draws=[]}
-  render();
-  if(localStorage.getItem('kenoAuto')==='1'){autoTimer=setInterval(updateFromLucky,300000);$('autoBtn').textContent='Авто: вкл.';updateFromLucky()}
-})();
+function auto(){
+ clearInterval(timer);timer=null;
+ const ms=Number(localStorage.getItem('pozitron_v5_interval')||0);
+ if(ms)timer=setInterval(update,ms)
+}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-mode]').forEach(x=>x.classList.remove('on'));b.classList.add('on');mode=b.dataset.mode;renderCards()});
+document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>$(b.dataset.panel).classList.toggle('show'));
+document.querySelectorAll('[data-foot]').forEach(b=>b.onclick=()=>{const p=$(b.dataset.foot);p.classList.add('show');p.scrollIntoView({behavior:'smooth'})});
+$('findBtn').onclick=()=>{const n=Number($('searchDraw').value),d=draws.find(x=>x.draw===n);$('searchResult').innerHTML=d?`<div class="row"><b>№${d.draw}</b> — ${showDate(d.date)} ${d.time}<br>${d.balls.map(pad).join(' ')}</div>`:'<div class="row small">Тираж не найден.</div>'};
+$('importFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const added=merge(parse(r.result));render();$('status').textContent=`Импорт: добавлено ${added} · всего ${draws.length}`};r.readAsText(f,'UTF-8')};
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:5,exportedAt:new Date().toISOString(),draws},null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='ПОЗИТРОН_КЕНО_v5_БАЗА.json';a.click();URL.revokeObjectURL(u)};
+$('sync').onclick=update;$('sync2').onclick=update;
+$('settingsBtn').onclick=()=>{$('sourceUrl').value=localStorage.getItem('pozitron_v5_url')||'';$('interval').value=localStorage.getItem('pozitron_v5_interval')||'0';$('settings').showModal()};
+$('saveSettings').onclick=()=>{localStorage.setItem('pozitron_v5_url',$('sourceUrl').value.trim());localStorage.setItem('pozitron_v5_interval',$('interval').value);auto()};
+$('chainDate').onchange=renderChains;
+load();render();auto();
 </script>
 </body>
 </html>
