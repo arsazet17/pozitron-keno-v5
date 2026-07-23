@@ -66,7 +66,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   <div class="top">
     <div>
       <div class="brand">🎯 ПОЗИТРОН КЕНО v5</div>
-      <div id="status" class="sub">Настоящая версия v5 · база загружается…</div>
+      <div id="status" class="sub">v5 автообновление · база загружается…</div>
     </div>
     <div>
       <button id="sync" class="icon">↻</button>
@@ -79,6 +79,8 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
     <button data-mode="asc">Возрастание</button>
     <button data-mode="both">Вместе</button>
   </div>
+
+  <div class="sub" style="margin:0 2px 8px">🔸 переход из предыдущего тиража · зелёная линия — одинаковое место в выпадении и возрастании</div>
 
   <main id="cards"></main>
 
@@ -132,7 +134,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   <form method="dialog">
     <div class="section" style="margin-top:0"><span>Настройки обновления</span><button class="icon">✕</button></div>
     <label class="small">Адрес источника тиражей</label>
-    <input id="sourceUrl" value="">
+    <input id="sourceUrl" value="https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws">
     <div style="height:8px"></div>
     <label class="small">Проверять автоматически</label>
     <select id="interval">
@@ -232,9 +234,18 @@ function card(d,i,label){
  </section>`
 }
 function renderCards(){
- if(!draws.length){$('cards').innerHTML='<section class="card small"><b>ПОЗИТРОН КЕНО v5 запущен.</b><br>База пока пустая. Откройте «База» и импортируйте CSV/JSON либо настройте источник обновления через ⚙.</section>';return}
- const labels=['Последний тираж','Предыдущий тираж','Предпредыдущий тираж'];
- $('cards').innerHTML=[0,1,2].filter(k=>draws.length-1-k>=0).map(k=>card(draws.at(-1-k),draws.length-1-k,labels[k])).join('')
+ const labels=['ПОСЛЕДНИЙ ТИРАЖ','ПРЕДЫДУЩИЙ ТИРАЖ','ПРЕДПРЕДЫДУЩИЙ ТИРАЖ'];
+ if(!draws.length){
+  $('cards').innerHTML='<section class="card small"><b>ПОЗИТРОН КЕНО v5 запущен.</b><br>База пока пустая. Откройте «База» и импортируйте CSV/JSON либо настройте источник обновления через ⚙.</section>';
+  return
+ }
+ const out=[];
+ for(let k=0;k<3;k++){
+  const i=draws.length-1-k;
+  if(i>=0) out.push(card(draws[i],i,labels[k]));
+  else out.push(`<section class="card"><div class="label">${labels[k]}</div><div class="small" style="margin-top:8px">Недостаточно данных для этой карточки.</div></section>`);
+ }
+ $('cards').innerHTML=out.join('')
 }
 function minutes(t){const m=normTime(t).match(/(\d+):(\d+)/);return m?+m[1]*60 + +m[2]:0}
 function renderChains(){
@@ -259,7 +270,7 @@ function render(){
  renderCards();renderChains();renderArchive()
 }
 async function update(){
- const url=(localStorage.getItem('pozitron_v5_url')||'').trim();
+ const url=(localStorage.getItem('pozitron_v5_url')||'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws').trim();
  if(!url){$('status').textContent='Источник не настроен — нажмите ⚙';return}
  $('status').textContent='Проверяю новые тиражи…';
  try{
@@ -270,7 +281,7 @@ async function update(){
 }
 function auto(){
  clearInterval(timer);timer=null;
- const ms=Number(localStorage.getItem('pozitron_v5_interval')||0);
+ const ms=Number(localStorage.getItem('pozitron_v5_interval')||300000);
  if(ms)timer=setInterval(update,ms)
 }
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-mode]').forEach(x=>x.classList.remove('on'));b.classList.add('on');mode=b.dataset.mode;renderCards()});
@@ -280,10 +291,10 @@ $('findBtn').onclick=()=>{const n=Number($('searchDraw').value),d=draws.find(x=>
 $('importFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const added=merge(parse(r.result));render();$('status').textContent=`Импорт: добавлено ${added} · всего ${draws.length}`};r.readAsText(f,'UTF-8')};
 $('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:5,exportedAt:new Date().toISOString(),draws},null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='ПОЗИТРОН_КЕНО_v5_БАЗА.json';a.click();URL.revokeObjectURL(u)};
 $('sync').onclick=update;$('sync2').onclick=update;
-$('settingsBtn').onclick=()=>{$('sourceUrl').value=localStorage.getItem('pozitron_v5_url')||'';$('interval').value=localStorage.getItem('pozitron_v5_interval')||'0';$('settings').showModal()};
+$('settingsBtn').onclick=()=>{$('sourceUrl').value=localStorage.getItem('pozitron_v5_url')||'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws';$('interval').value=localStorage.getItem('pozitron_v5_interval')||'300000';$('settings').showModal()};
 $('saveSettings').onclick=()=>{localStorage.setItem('pozitron_v5_url',$('sourceUrl').value.trim());localStorage.setItem('pozitron_v5_interval',$('interval').value);auto()};
 $('chainDate').onchange=renderChains;
-load();render();auto();
+load();render();auto();setTimeout(update,800);
 </script>
 </body>
 </html>
