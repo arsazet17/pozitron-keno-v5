@@ -7,9 +7,9 @@
 <title>ПОЗИТРОН КЕНО v5.5</title>
 <link rel="manifest" href="manifest.webmanifest">
 
-<link rel="icon" type="image/svg+xml" href="assets/icon.svg">
-<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
-<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 
 <style>
 :root{
@@ -90,7 +90,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   <div class="top">
     <div>
       <div class="brand">🎯 ПОЗИТРОН КЕНО v5.5</div>
-      <div id="status" class="sub">v5.5 · Аналоги+ · база загружается…</div>
+      <div id="status" class="sub">v5.6 · Аналоги+ РЕАЛЬНЫЙ АНАЛИЗ · база загружается…</div>
     </div>
     <div>
       <button id="sync" class="icon">↻</button>
@@ -152,7 +152,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   </section>
 
   <section id="infoPanel" class="card panel">
-    <p class="small">Версия v5.5: добавлен модуль «Аналоги+». Одно нажатие запускает поиск по всей сохранённой базе и выдаёт готовый прогноз: четыре столба, вероятные числа и две сборки К5. Архив по датам, цепочки и часовые перерывы сохранены.</p>
+    <p class="small">Версия v5.6: добавлен модуль «Аналоги+». Одно нажатие запускает поиск по всей сохранённой базе и выдаёт готовый прогноз: четыре столба, вероятные числа и две сборки К5. Архив по датам, цепочки и часовые перерывы сохранены.</p>
   </section>
 </div>
 
@@ -436,11 +436,11 @@ function findAnalogs(){
    <div class="plus-k5">${k51.map(pad).join(' · ')}</div>
    <div class="plus-k5">${k52.map(pad).join(' · ')}</div>`;
 
-  localStorage.setItem('pozitron_v55_last_forecast',JSON.stringify({createdAt:new Date().toISOString(),targetDraw:nextDraw,columns:cols.map(x=>x[0]),numbers:nums,k5:[k51,k52],analogs:top.length,maxSimilarity:maxScore}));
+  localStorage.setItem('pozitron_v56_last_forecast',JSON.stringify({createdAt:new Date().toISOString(),targetDraw:nextDraw,columns:cols.map(x=>x[0]),numbers:nums,k5:[k51,k52],analogs:top.length,maxSimilarity:maxScore}));
  },30)
 }
 function render(){
- $('status').textContent=draws.length?`База: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v5.5 · база: 0';
+ $('status').textContent=draws.length?`База: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v5.6 · база: 0';
  if(draws.length&&!$('chainDate').value)$('chainDate').value=draws.at(-1).date;
  renderCards();renderChains();renderArchive()
 }
