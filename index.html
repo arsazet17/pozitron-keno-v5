@@ -7,9 +7,9 @@
 <title>ПОЗИТРОН КЕНО v6.2</title>
 <link rel="manifest" href="manifest.webmanifest">
 
-<link rel="icon" type="image/svg+xml" href="assets/icon.svg">
-<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
-<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 
 <style>
 :root{
@@ -84,8 +84,8 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   <div class="top">
     <div>
       <div class="brand">🎯 ПОЗИТРОН КЕНО v6.2</div>
-      <div style="display:inline-block;margin-top:6px;padding:5px 10px;border:2px solid #4ade80;border-radius:10px;color:#4ade80;font-weight:900">СБОРКА 6.2.1 · АВТООБНОВЛЕНИЕ · ЖИВАЯ ПРОВЕРКА</div>
-      <div id="status" class="sub">v6.2.1 · автообновление · база загружается…</div>
+      <div style="display:inline-block;margin-top:6px;padding:5px 10px;border:2px solid #4ade80;border-radius:10px;color:#4ade80;font-weight:900">СБОРКА 6.2.2 · АВТООБНОВЛЕНИЕ · ЖИВАЯ ПРОВЕРКА</div>
+      <div id="status" class="sub">v6.2.2 · автообновление · база загружается…</div>
     </div>
     <div>
       <button id="sync" class="icon">↻</button>
@@ -517,7 +517,7 @@ function runAnalogsPlus(){
  renderLivePredictionCheck();
 }
 function render(){
- $('status').textContent=draws.length?`v6.2.1 · база: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v6.2.1 · база: 0';
+ $('status').textContent=draws.length?`v6.2.2 · база: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v6.2.2 · база: 0';
  if(draws.length&&!$('chainDate').value)$('chainDate').value=draws.at(-1).date;
  renderCards();renderChains();renderArchive();renderLivePredictionCheck()
 }
