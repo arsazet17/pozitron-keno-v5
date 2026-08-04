@@ -255,15 +255,32 @@
       ${older.length ? older.map(x => recordHtml(x, false)).join('') : '<div class="row small">Завершённых прошлых записей пока нет.</div>'}`;
   }
 
-  function openPanel(horizon) {
+  function updateClusterButtons(openHorizon = null) {
+    document.querySelectorAll('[data-cluster-horizon]').forEach(button => {
+      const horizon = Number(button.dataset.clusterHorizon);
+      const isOpen = Number(openHorizon) === horizon;
+      button.classList.toggle('active', isOpen);
+      button.setAttribute('aria-expanded', String(isOpen));
+      button.innerHTML = `<span>${HORIZONS[horizon].button}</span><span class="cluster-arrow" aria-hidden="true">${isOpen ? '▼' : '▶'}</span>`;
+    });
+  }
+
+  function togglePanel(horizon) {
     const panel = byId('clusterPanel');
     if (!panel) return;
-    renderPanel(horizon);
+    const requestedHorizon = Number(horizon) || 1;
+    const sameOpenPanel = panel.classList.contains('show') && Number(activeHorizon) === requestedHorizon;
+
+    if (sameOpenPanel) {
+      panel.classList.remove('show');
+      updateClusterButtons(null);
+      return;
+    }
+
+    renderPanel(requestedHorizon);
     panel.classList.add('show');
+    updateClusterButtons(requestedHorizon);
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    document.querySelectorAll('[data-cluster-horizon]').forEach(button => {
-      button.classList.toggle('active', Number(button.dataset.clusterHorizon) === Number(horizon));
-    });
   }
 
   function injectStyles() {
@@ -272,7 +289,7 @@
     style.id = 'clusterTrackerStyles';
     style.textContent = `
       .cluster-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
-      .cluster-button{font-size:18px;padding:8px 4px}.cluster-button.active{border-color:#72df95;background:#153a2a}
+      .cluster-button{font-size:18px;padding:8px 9px;display:flex;align-items:center;justify-content:center;gap:8px}.cluster-button.active{border-color:#72df95;background:#153a2a}.cluster-arrow{font-size:13px;line-height:1;color:#aebfd3}
       .cluster-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:8px}
       .cluster-title b{font-size:20px}.cluster-title small{display:block;color:var(--muted);margin-top:3px}.cluster-title>span{font-size:11px;color:var(--muted);text-align:right}
       .cluster-warning{font-size:12px;color:#ffe6a0;background:#302812;border:1px solid #6e5b20;border-radius:9px;padding:8px;margin-bottom:9px}
@@ -305,7 +322,7 @@
 
     const row = document.createElement('div');
     row.className = 'cluster-tools';
-    row.innerHTML = [1, 2, 3].map(h => `<button class="tool cluster-button" type="button" data-cluster-horizon="${h}" aria-label="${HORIZONS[h].title}">${HORIZONS[h].button}</button>`).join('');
+    row.innerHTML = [1, 2, 3].map(h => `<button class="tool cluster-button" type="button" data-cluster-horizon="${h}" aria-label="${HORIZONS[h].title}" aria-expanded="false"><span>${HORIZONS[h].button}</span><span class="cluster-arrow" aria-hidden="true">▶</span></button>`).join('');
     tools.insertAdjacentElement('afterend', row);
 
     const panel = document.createElement('section');
@@ -315,8 +332,9 @@
     searchPanel.parentNode.insertBefore(panel, searchPanel);
 
     row.querySelectorAll('[data-cluster-horizon]').forEach(button => {
-      button.addEventListener('click', () => openPanel(Number(button.dataset.clusterHorizon)));
+      button.addEventListener('click', () => togglePanel(Number(button.dataset.clusterHorizon)));
     });
+    updateClusterButtons(null);
   }
 
   function enhanceImportExport() {
