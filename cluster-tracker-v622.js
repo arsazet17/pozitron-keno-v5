@@ -231,7 +231,13 @@
       ${record.candidates.filter(x => x.kind === 'H').map(x => candidateHtml(x, actual)).join('')}
       ${actual ? (() => {
         const forecastNumbers = new Set(record.candidates.flatMap(candidate => candidate.numbers.map(Number)));
-        return `<div class="cluster-subtitle">Фактические 20 чисел</div><div class="cluster-actual">${numberChips(actual.balls, forecastNumbers)}</div>`;
+        const actualSet = new Set(actual.balls.map(Number));
+        const combinedHits = [...forecastNumbers].filter(number => actualSet.has(Number(number)));
+        const combinedPayout = payoutFor(combinedHits.length, combinedHits.length);
+        const combinedPrizeHtml = combinedPayout > 0
+          ? `<div class="cluster-combined-prize"><span aria-hidden="true">👁️👁️</span><b>${rubles(combinedPayout)}</b></div>`
+          : '';
+        return `<div class="cluster-subtitle">Фактические 20 чисел</div><div class="cluster-actual">${numberChips(actual.balls, forecastNumbers)}</div>${combinedPrizeHtml}`;
       })() : ''}`;
     if (expanded) return `<div class="cluster-record current">${body}</div>`;
     return `<details class="cluster-record"><summary><b>${meta.button} тираж №${record.targetDraw}</b><span class="${totalPayout > 0 ? 'cluster-record-prize' : ''}">${actual ? archivePrize : '⏳ ожидает'}</span></summary>${body}</details>`;
@@ -303,6 +309,7 @@
       .cluster-card-head span{color:var(--muted);font-size:11px}.cluster-numbers,.cluster-actual{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
       .cluster-num{display:inline-block;min-width:38px;text-align:center;padding:5px 6px;border:1px solid #304b6d;border-radius:8px;background:#172a43;font-family:ui-monospace,Consolas,monospace;font-weight:900;font-size:13px}
       .cluster-num.hit{border-color:#43d77b;background:#123a28;color:#c9ffda}.cluster-result{font-size:12px;font-weight:900;margin-top:6px;color:#ffcf82}.cluster-result.good{color:#72df95}.cluster-result.prize,.cluster-record-prize{color:#ffb04a;font-weight:950}
+      .cluster-combined-prize{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 2px;font-size:18px;font-weight:950;color:#ffb04a}.cluster-combined-prize span{font-size:20px;line-height:1}.cluster-combined-prize b{font:inherit}
       .cluster-archive-title{font-size:16px;font-weight:950;margin:14px 2px 7px}
     `;
     document.head.appendChild(style);
