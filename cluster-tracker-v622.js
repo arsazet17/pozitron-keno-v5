@@ -229,7 +229,10 @@
       ${record.candidates.filter(x => x.kind === 'V').map(x => candidateHtml(x, actual)).join('')}
       <div class="cluster-subtitle">Горизонтальные сборки</div>
       ${record.candidates.filter(x => x.kind === 'H').map(x => candidateHtml(x, actual)).join('')}
-      ${actual ? `<div class="cluster-subtitle">Фактические 20 чисел</div><div class="cluster-actual">${numberChips(actual.balls, null)}</div>` : ''}`;
+      ${actual ? (() => {
+        const forecastNumbers = new Set(record.candidates.flatMap(candidate => candidate.numbers.map(Number)));
+        return `<div class="cluster-subtitle">Фактические 20 чисел</div><div class="cluster-actual">${numberChips(actual.balls, forecastNumbers)}</div>`;
+      })() : ''}`;
     if (expanded) return `<div class="cluster-record current">${body}</div>`;
     return `<details class="cluster-record"><summary><b>${meta.button} тираж №${record.targetDraw}</b><span class="${totalPayout > 0 ? 'cluster-record-prize' : ''}">${actual ? archivePrize : '⏳ ожидает'}</span></summary>${body}</details>`;
   }
