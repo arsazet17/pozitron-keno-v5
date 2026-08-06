@@ -1,0 +1,73 @@
+name: KENO v6.2.2 server predictions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'keno-history-v62.json'
+      - 'cluster-model-v622.js'
+      - 'scripts/keno-v622-server.mjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-v622-server-predictions
+  cancel-in-progress: false
+
+jobs:
+  build-server-archives:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get latest main
+        run: git pull --rebase origin main
+
+      - name: Rebuild all missing predictions and check finished draws
+        run: node scripts/keno-v622-server.mjs
+
+      - name: Commit server archives
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- \
+            cluster-archive-next-v622.json \
+            cluster-archive-minus1-v622.json \
+            cluster-archive-minus2-v622.json
+
+          if git diff --cached --quiet; then
+            echo "No archive changes"
+            exit 0
+          fi
+
+          git commit -m "Auto-update KENO v6.2.2 server predictions"
+
+          if git push origin HEAD:main; then
+            exit 0
+          fi
+
+          echo "Main changed in parallel; rebasing and rebuilding archives..."
+          git fetch origin main
+          git rebase origin/main
+          node scripts/keno-v622-server.mjs
+          git add -- \
+            cluster-archive-next-v622.json \
+            cluster-archive-minus1-v622.json \
+            cluster-archive-minus2-v622.json
+          git commit --amend --no-edit
+          git push origin HEAD:main
