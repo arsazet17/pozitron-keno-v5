@@ -519,20 +519,29 @@ function render(){
 }
 async function update(){
  const saved=(localStorage.getItem('pozitron_v62_url')||'./keno-history-v62.json').trim();
- const sources=[saved,'./keno-history-v62.json','https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws']
-  .filter((url,index,list)=>url&&list.indexOf(url)===index);
+ const sources=[
+  saved,
+  './keno-history-v62.json',
+  'https://raw.githubusercontent.com/arsazet17/pozitron-keno-v5/main/keno-history-v62.json',
+  'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws'
+ ].filter((url,index,list)=>url&&list.indexOf(url)===index);
  $('status').textContent='Проверяю новые тиражи…';
- let lastError=null;
+ let lastError=null,totalAdded=0,sourceWorked=false;
  for(const url of sources){
   try{
    const separator=url.includes('?')?'&':'?';
-   const requestUrl=url.startsWith('./')?`${url}${separator}t=${Date.now()}`:url;
+   const bustCache=url.startsWith('./')||url.includes('raw.githubusercontent.com');
+   const requestUrl=bustCache?`${url}${separator}t=${Date.now()}`:url;
    const r=await fetch(requestUrl,{cache:'no-store'});if(!r.ok)throw new Error(`HTTP ${r.status}`);
    const arr=parse(await r.text());if(!arr.length)throw new Error('нет распознанных тиражей');
-   const added=merge(arr);render();$('status').textContent=`Добавлено ${added} · всего ${draws.length}`;return
+   sourceWorked=true;
+   totalAdded+=merge(arr);
   }catch(e){lastError=e}
  }
- render();$('status').textContent='Обновление не выполнено: '+(lastError?.message||'источник недоступен')
+ render();
+ $('status').textContent=sourceWorked
+  ?`Добавлено ${totalAdded} · всего ${draws.length}`
+  :'Обновление не выполнено: '+(lastError?.message||'источник недоступен')
 }
 function auto(){
  clearInterval(timer);timer=null;
