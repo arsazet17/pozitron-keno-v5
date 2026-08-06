@@ -13,9 +13,9 @@
     3: './cluster-archive-minus2-v622.json'
   };
   const HORIZONS = {
-    1: { button: '🎯', title: 'Следующий тираж', note: 'серверный прогноз на следующий тираж' },
-    2: { button: '⏳−1', title: 'Через один тираж', note: 'серверный прогноз через один тираж' },
-    3: { button: '⏳−2', title: 'Через два тиража', note: 'серверный прогноз через два тиража' }
+    1: { button: '🎯', title: 'Следующий тираж', note: 'сейчас → следующий тираж' },
+    2: { button: '⏳−1', title: 'Через один тираж', note: 'ожидание одного промежуточного тиража' },
+    3: { button: '⏳−2', title: 'Через два тиража', note: 'ожидание двух промежуточных тиражей' }
   };
 
   const KENO_PAYOUTS = Object.freeze({
@@ -174,35 +174,28 @@
     };
   }
 
-  function outcomeLabel(outcome, length) {
-    if (!outcome) return 'ожидает результата';
-    if (outcome.result === 'full' || Number(outcome.hitCount) === Number(length)) return 'ПОЛНАЯ СБОРКА';
-    if (Number(outcome.hitCount) > 0) return 'ЧАСТИЧНАЯ СБОРКА';
-    return 'НЕ СОСТОЯЛАСЬ';
-  }
-
   function candidateHtml(candidate, actual) {
     const outcome = outcomeFor(candidate, actual);
     const hitSet = new Set((outcome?.hitNumbers || []).map(Number));
     const liftPercent = Math.round((Number(candidate.lift || 1) - 1) * 100);
     const payout = Number(outcome?.payout || 0);
-    const resultClass = outcome?.result === 'full' ? 'good' : outcome?.result === 'partial' ? 'partial' : '';
-    return `<div class="cluster-card ${outcome?.result === 'full' ? 'cluster-full' : ''} ${payout > 0 ? 'cluster-prize' : ''}">
+    const full = outcome && Number(outcome.hitCount) === Number(candidate.length);
+    const prizeHtml = actual && payout > 0
+      ? `<div class="cluster-result prize">🔥 ${rubles(payout)}</div>`
+      : '';
+
+    return `<div class="cluster-card ${full ? 'cluster-full' : ''} ${payout > 0 ? 'cluster-prize' : ''}">
       <div class="cluster-card-head"><b>${candidate.kind === 'V' ? '↕' : '↔'} ${placesText(candidate)}</b><span>${candidate.length} числа</span></div>
-      <div class="cluster-section-label">Что прогнозировали</div>
       <div class="cluster-numbers">${numberChips(candidate.numbers, hitSet)}</div>
-      <div class="cluster-meta">${sourceText(candidate)} · задержка ${candidate.delay} · историческая частота: ${candidate.archiveFullHits}/${candidate.archiveChecks}${liftPercent > 0 ? ` · +${liftPercent}%` : ''}</div>
-      ${actual ? `<div class="cluster-result ${resultClass}">Совпало: <b>${outcome.hitCount}/${candidate.length}</b> · ${outcomeLabel(outcome, candidate.length)}${payout > 0 ? ` · 🔥 ${rubles(payout)}` : ''}</div>` : '<div class="cluster-result">⏳ Ожидаем целевой тираж</div>'}
+      <div class="cluster-meta">${sourceText(candidate)} · задержка ${candidate.delay} · полных сборок ${candidate.archiveFullHits}/${candidate.archiveChecks}${liftPercent > 0 ? ` · +${liftPercent}%` : ''}</div>
+      ${prizeHtml}
     </div>`;
   }
 
   function recordSummary(record, actual) {
     const outcomes = record.candidates.map(c => outcomeFor(c, actual)).filter(Boolean);
-    const full = outcomes.filter(x => x.result === 'full').length;
-    const partial = outcomes.filter(x => x.result === 'partial').length;
-    const none = outcomes.filter(x => x.result === 'none').length;
     const totalPayout = outcomes.reduce((sum, x) => sum + Number(x.payout || 0), 0);
-    return { full, partial, none, totalPayout };
+    return { totalPayout };
   }
 
   function recordHtml(record, expanded = false) {
@@ -210,25 +203,30 @@
     const meta = HORIZONS[record.horizon] || HORIZONS[1];
     const summary = record.summary || recordSummary(record, actual);
     const forecastNumbers = new Set(record.candidates.flatMap(c => (c.numbers || []).map(Number)));
-    const actualHits = actual ? actual.balls.filter(n => forecastNumbers.has(Number(n))) : [];
-    const actualHitSet = new Set(actualHits.map(Number));
-    const created = record.createdAtDrawTime || [record.sourceDate, record.sourceTime].filter(Boolean).join(' ') || record.createdAt || '—';
     const archivePrize = actual && Number(summary.totalPayout || 0) > 0 ? `🔥 ${rubles(summary.totalPayout)}` : '';
 
-    const body = `<div class="cluster-record-summary"><b>${meta.button} тираж №${record.targetDraw}</b><span class="${archivePrize ? 'cluster-record-prize' : ''}">${actual ? (archivePrize || 'проверен') : 'ожидает результата'}</span></div>
-      <div class="cluster-source-note">Дата создания прогноза: ${created}. Зафиксировано после №${record.sourceDraw}. Серверная запись после создания не меняет прогноз.</div>
+    const actualBlock = actual ? (() => {
+      const actualSet = new Set(actual.balls.map(Number));
+      const combinedHits = [...forecastNumbers].filter(number => actualSet.has(Number(number)));
+      const combinedPayout = payoutFor(combinedHits.length, combinedHits.length);
+      const combinedPrizeHtml = combinedPayout > 0
+        ? `<div class="cluster-combined-prize"><span aria-hidden="true">👁️👁️</span><b>${rubles(combinedPayout)}</b></div>`
+        : '';
+      return `<div class="cluster-subtitle">Фактические 20 чисел</div>
+        <div class="cluster-actual">${numberChips(actual.balls, forecastNumbers)}</div>
+        ${combinedPrizeHtml}`;
+    })() : '';
+
+    const body = `<div class="cluster-record-summary"><b>${meta.button} тираж №${record.targetDraw}</b><span class="${archivePrize ? 'cluster-record-prize' : ''}">${actual ? archivePrize : 'ожидает результата'}</span></div>
+      <div class="cluster-source-note">Зафиксировано после №${record.sourceDraw}. Прогноз после сохранения не меняется.</div>
       <div class="cluster-subtitle">Вертикальные сборки</div>
       ${record.candidates.filter(x => x.kind === 'V').map(x => candidateHtml(x, actual)).join('') || '<div class="row small">Нет вертикальных вариантов.</div>'}
       <div class="cluster-subtitle">Горизонтальные сборки</div>
       ${record.candidates.filter(x => x.kind === 'H').map(x => candidateHtml(x, actual)).join('') || '<div class="row small">Нет горизонтальных вариантов.</div>'}
-      ${actual ? `<div class="cluster-subtitle">Что выпало — фактические 20 чисел</div>
-        <div class="cluster-actual">${numberChips(actual.balls, forecastNumbers)}</div>
-        <div class="cluster-subtitle">Какие числа совпали</div>
-        <div class="cluster-actual">${actualHits.length ? numberChips(actualHits, actualHitSet) : '<span class="small">Совпадений нет.</span>'}</div>
-        <div class="cluster-final">Итог сборки: полных ${summary.full || 0} · частичных ${summary.partial || 0} · несостоявшихся ${summary.none || 0}${Number(summary.totalPayout || 0) > 0 ? ` · 🔥 ${rubles(summary.totalPayout)}` : ''}</div>` : ''}`;
+      ${actualBlock}`;
 
     if (expanded) return `<div class="cluster-record current">${body}</div>`;
-    return `<details class="cluster-record"><summary><b>${meta.button} тираж №${record.targetDraw}</b><span class="${archivePrize ? 'cluster-record-prize' : ''}">${actual ? (archivePrize || '✅ проверен') : '⏳ ожидает'}</span></summary>${body}</details>`;
+    return `<details class="cluster-record"><summary><b>${meta.button} тираж №${record.targetDraw}</b><span class="${archivePrize ? 'cluster-record-prize' : ''}">${actual ? archivePrize : '⏳ ожидает'}</span></summary>${body}</details>`;
   }
 
   function renderPanel(horizon = activeHorizon) {
@@ -241,14 +239,11 @@
     const current = all.find(r => !actualForRecord(r)) || all[0] || null;
     const older = current ? all.filter(r => r.id !== current.id) : all;
     const meta = HORIZONS[activeHorizon];
-    const sourceTextValue = serverState[activeHorizon]?.length ? 'сервер GitHub Actions' : (readCache(activeHorizon).length ? 'локальная копия серверного архива' : 'старый архив телефона');
-
     box.innerHTML = `<div class="cluster-title"><div><b>${meta.button} ${meta.title}</b><small>${meta.note}</small></div><span>модель: ${Number(MODEL.trainedDraws || 0).toLocaleString('ru-RU')} тиражей</span></div>
-      <div class="cluster-server-ok">☁️ Источник архива: ${sourceTextValue}. Телефон не обязан быть включён для создания новых записей.</div>
-      <div class="cluster-warning">Статистический сигнал, а не гарантия выигрыша.</div>
-      ${current ? recordHtml(current, true) : '<div class="row small">Серверный архив пока пуст. После первого запуска GitHub Actions записи появятся автоматически.</div>'}
-      <div class="cluster-archive-title">Отдельный архив ${meta.button} — ${older.length} записей</div>
-      ${older.length ? older.map(x => recordHtml(x, false)).join('') : '<div class="row small">Других записей пока нет.</div>'}`;
+      <div class="cluster-warning">Экспериментальный сигнал полной сборки. Он показывает расположение и числа блока, но не гарантирует выпадение.</div>
+      ${current ? recordHtml(current, true) : '<div class="row small">Недостаточно данных для построения сборок.</div>'}
+      <div class="cluster-archive-title">Архив ${meta.button}</div>
+      ${older.length ? older.map(x => recordHtml(x, false)).join('') : '<div class="row small">Завершённых прошлых записей пока нет.</div>'}`;
   }
 
   function updateClusterButtons(openHorizon = null) {
@@ -290,7 +285,7 @@
       .cluster-source-note,.cluster-meta{font-size:11px;color:var(--muted);line-height:1.4;margin-top:5px}.cluster-subtitle{font-size:13px;font-weight:950;color:#dceaff;margin:10px 0 4px}.cluster-section-label{font-size:11px;font-weight:900;color:#b8c9de;margin-top:7px}
       .cluster-card{background:#101f33;border:1px solid #263e5b;border-radius:10px;padding:8px;margin-top:6px}.cluster-card.cluster-full{border-color:#43d77b;background:#123525}.cluster-card.cluster-prize{box-shadow:inset 0 0 0 1px #f39a32;border-color:#f39a32}.cluster-card-head{display:flex;justify-content:space-between;gap:8px;font-size:13px}.cluster-card-head span{color:var(--muted);font-size:11px}
       .cluster-numbers,.cluster-actual{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.cluster-num{display:inline-block;min-width:38px;text-align:center;padding:5px 6px;border:1px solid #304b6d;border-radius:8px;background:#172a43;font-family:ui-monospace,Consolas,monospace;font-weight:900;font-size:13px}.cluster-num.hit{border-color:#43d77b;background:#123a28;color:#c9ffda}
-      .cluster-result{font-size:12px;font-weight:900;margin-top:6px;color:#ffcf82}.cluster-result.good{color:#72df95}.cluster-result.partial{color:#ffe18b}.cluster-record-prize{color:#ffb04a;font-weight:950}.cluster-final{margin-top:10px;padding:8px;border-radius:9px;background:#14253b;border:1px solid #355273;font-size:13px;font-weight:900}.cluster-archive-title{font-size:16px;font-weight:950;margin:14px 2px 7px}
+      .cluster-result{font-size:12px;font-weight:900;margin-top:6px;color:#ffcf82}.cluster-result.prize{color:#ffb04a;font-size:14px}.cluster-record-prize{color:#ffb04a;font-weight:950}.cluster-combined-prize{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 2px;font-size:20px;color:#ffb04a;font-weight:950}.cluster-archive-title{font-size:16px;font-weight:950;margin:14px 2px 7px}
     `;
     document.head.appendChild(style);
   }
