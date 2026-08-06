@@ -1,16 +1,23 @@
 'use strict';
 (() => {
   const MODEL = window.POZITRON_CLUSTER_MODEL || { strategies: [] };
-  const STORAGE_KEY = 'pozitron_v622_cluster_predictions_v1';
-  const STORAGE_LIMIT = 1200;
+  const LEGACY_KEY = 'pozitron_v622_cluster_predictions_v1';
+  const CACHE_KEYS = {
+    1: 'pozitron_v622_archive_h1_server',
+    2: 'pozitron_v622_archive_h2_server',
+    3: 'pozitron_v622_archive_h3_server'
+  };
+  const SERVER_FILES = {
+    1: './cluster-archive-next-v622.json',
+    2: './cluster-archive-minus1-v622.json',
+    3: './cluster-archive-minus2-v622.json'
+  };
   const HORIZONS = {
-    1: { button: '🎯', title: 'Следующий тираж', note: 'сейчас → следующий тираж' },
-    2: { button: '⏳−1', title: 'Через один тираж', note: 'ожидание одного промежуточного тиража' },
-    3: { button: '⏳−2', title: 'Через два тиража', note: 'ожидание двух промежуточных тиражей' }
+    1: { button: '🎯', title: 'Следующий тираж', note: 'серверный прогноз на следующий тираж' },
+    2: { button: '⏳−1', title: 'Через один тираж', note: 'серверный прогноз через один тираж' },
+    3: { button: '⏳−2', title: 'Через два тиража', note: 'серверный прогноз через два тиража' }
   };
 
-  // Официальная таблица выплат КЕНО со скриншотов пользователя.
-  // Первый ключ — сколько чисел выбрано, второй — сколько угадано.
   const KENO_PAYOUTS = Object.freeze({
     10: Object.freeze({ 10: 10000000, 9: 1000000, 8: 50000, 7: 5000, 6: 750, 5: 250, 4: 100, 0: 200 }),
     9: Object.freeze({ 9: 4000000, 8: 210000, 7: 10000, 6: 1000, 5: 300, 4: 150, 0: 150 }),
@@ -23,224 +30,205 @@
     2: Object.freeze({ 2: 300, 1: 100 }),
     1: Object.freeze({ 1: 280 })
   });
+
   let activeHorizon = 1;
-  let lastSeenDraw = 0;
+  let serverState = { 1: [], 2: [], 3: [] };
+  let syncInFlight = false;
+  let lastSyncAt = 0;
 
   const byId = id => document.getElementById(id);
   const pad2 = n => String(Number(n)).padStart(2, '0');
-  const safeDraws = () => Array.isArray(draws) ? draws : [];
+  const safeDraws = () => Array.isArray(window.draws) ? window.draws : (typeof draws !== 'undefined' && Array.isArray(draws) ? draws : []);
+  const rubles = amount => `${Number(amount || 0).toLocaleString('ru-RU')} ₽`;
   const payoutFor = (selected, guessed) => Number(KENO_PAYOUTS[Number(selected)]?.[Number(guessed)] || 0);
-  const rubles = amount => `${Number(amount).toLocaleString('ru-RU')} ₽`;
 
-  function readArchive() {
+  function readJsonStorage(key, fallback) {
     try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      return Array.isArray(parsed) ? parsed : [];
+      const value = JSON.parse(localStorage.getItem(key) || 'null');
+      return value == null ? fallback : value;
     } catch (_) {
-      return [];
+      return fallback;
     }
   }
 
-  function writeArchive(records) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records.slice(-STORAGE_LIMIT)));
-    } catch (_) {
-      // Запрет localStorage не должен ломать основное приложение.
-    }
+  function writeJsonStorage(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {}
   }
 
-  function areDrawsConsecutive(list, start, end) {
-    for (let i = start + 1; i <= end; i += 1) {
-      if (Number(list[i]?.draw) !== Number(list[i - 1]?.draw) + 1) return false;
-    }
-    return true;
+  function readLegacy() {
+    const value = readJsonStorage(LEGACY_KEY, []);
+    return Array.isArray(value) ? value : [];
   }
 
-  function sourceForStrategy(strategy, horizon) {
-    const list = safeDraws();
-    if (!list.length || Number(strategy.d) < horizon) return null;
-    const sourceEnd = list.length - 1 + horizon - Number(strategy.d);
-    if (sourceEnd < 0 || sourceEnd >= list.length) return null;
-
-    if (strategy.t === 'V') {
-      const sourceStart = sourceEnd - Number(strategy.n) + 1;
-      if (sourceStart < 0 || !areDrawsConsecutive(list, sourceStart, sourceEnd)) return null;
-      const numbers = [];
-      const sourceDraws = [];
-      for (let i = sourceStart; i <= sourceEnd; i += 1) {
-        const value = Number(list[i]?.balls?.[Number(strategy.m) - 1]);
-        if (!(value >= 1 && value <= 80)) return null;
-        numbers.push(value);
-        sourceDraws.push(Number(list[i].draw));
-      }
-      // Повтор одного числа не считается полной вертикалью из N разных чисел.
-      if (new Set(numbers).size !== numbers.length) return null;
-      return { numbers, sourceDraws, sourceStart, sourceEnd };
-    }
-
-    const draw = list[sourceEnd];
-    const start = Number(strategy.m) - 1;
-    const numbers = (draw?.balls || []).slice(start, start + Number(strategy.n)).map(Number);
-    if (numbers.length !== Number(strategy.n) || new Set(numbers).size !== numbers.length) return null;
-    return { numbers, sourceDraws: [Number(draw.draw)], sourceStart: sourceEnd, sourceEnd };
+  function readCache(horizon) {
+    const value = readJsonStorage(CACHE_KEYS[horizon], []);
+    return Array.isArray(value) ? value : [];
   }
 
-  function overlapTooHigh(numbers, selected) {
-    const current = new Set(numbers);
-    return selected.some(item => {
-      const other = new Set(item.numbers);
-      let shared = 0;
-      current.forEach(n => { if (other.has(n)) shared += 1; });
-      return shared / Math.min(current.size, other.size) > 0.60;
-    });
+  function legacyFor(horizon) {
+    return readLegacy().filter(x => Number(x?.horizon) === Number(horizon));
   }
 
-  function buildCandidates(horizon) {
-    const strategies = Array.isArray(MODEL.strategies) ? MODEL.strategies : [];
-    const prepared = [];
-
-    for (const strategy of strategies) {
-      const source = sourceForStrategy(strategy, horizon);
-      if (!source) continue;
-      prepared.push({
-        kind: strategy.t,
-        length: Number(strategy.n),
-        place: Number(strategy.m),
-        delay: Number(strategy.d),
-        numbers: source.numbers,
-        sourceDraws: source.sourceDraws,
-        archiveChecks: Number(strategy.a),
-        archiveFullHits: Number(strategy.h),
-        lift: Number(strategy.l),
-        validationLift: Number(strategy.v),
-        score: Number(strategy.s)
-      });
-    }
-
-    const result = [];
-    for (const kind of ['V', 'H']) {
-      const pool = prepared.filter(x => x.kind === kind).sort((a, b) => b.score - a.score || b.archiveFullHits - a.archiveFullHits);
-      const chosen = [];
-      for (const item of pool) {
-        if (overlapTooHigh(item.numbers, chosen)) continue;
-        chosen.push(item);
-        if (chosen.length === 3) break;
-      }
-      if (chosen.length < 3) {
-        for (const item of pool) {
-          if (chosen.includes(item)) continue;
-          chosen.push(item);
-          if (chosen.length === 3) break;
-        }
-      }
-      result.push(...chosen);
-    }
-    return result;
-  }
-
-  function recordId(horizon, targetDraw) {
-    return `${horizon}:${targetDraw}`;
-  }
-
-  function createPrediction(horizon) {
-    const list = safeDraws();
-    if (list.length < 15) return null;
-    const latest = list.at(-1);
-    const targetDraw = Number(latest.draw) + Number(horizon);
-    const records = readArchive();
-    const id = recordId(horizon, targetDraw);
-    const existing = records.find(x => x.id === id);
-    if (existing) return existing;
-
-    const candidates = buildCandidates(horizon);
-    if (!candidates.length) return null;
-    const record = {
-      id,
-      horizon: Number(horizon),
-      sourceDraw: Number(latest.draw),
-      targetDraw,
-      createdAt: new Date().toISOString(),
-      modelVersion: MODEL.version || '1.0',
-      modelDraws: Number(MODEL.trainedDraws || 0),
-      candidates
+  function actualFromPhone(targetDraw) {
+    const d = safeDraws().find(x => Number(x?.draw) === Number(targetDraw));
+    if (!d) return null;
+    return {
+      targetDraw: Number(d.draw),
+      date: String(d.date || ''),
+      time: String(d.time || ''),
+      balls: Array.isArray(d.balls) ? d.balls.map(Number).slice(0, 20) : []
     };
-    records.push(record);
-    records.sort((a, b) => Number(a.targetDraw) - Number(b.targetDraw) || Number(a.horizon) - Number(b.horizon));
-    writeArchive(records);
-    return record;
   }
 
-  function ensureAllPredictions() {
-    for (const horizon of [1, 2, 3]) createPrediction(horizon);
+  function normalizeRecord(record, horizon) {
+    if (!record || !Number.isFinite(Number(record.targetDraw))) return null;
+    return {
+      ...record,
+      id: String(record.id || `${horizon}:${record.targetDraw}`),
+      horizon: Number(record.horizon || horizon),
+      sourceDraw: Number(record.sourceDraw || 0),
+      targetDraw: Number(record.targetDraw),
+      candidates: Array.isArray(record.candidates) ? record.candidates : []
+    };
   }
 
-  function actualFor(targetDraw) {
-    return safeDraws().find(d => Number(d.draw) === Number(targetDraw)) || null;
+  function mergeRecords(horizon) {
+    const map = new Map();
+    for (const raw of legacyFor(horizon)) {
+      const r = normalizeRecord(raw, horizon);
+      if (r) map.set(r.id, r);
+    }
+    for (const raw of readCache(horizon)) {
+      const r = normalizeRecord(raw, horizon);
+      if (r) map.set(r.id, { ...(map.get(r.id) || {}), ...r });
+    }
+    for (const raw of serverState[horizon] || []) {
+      const r = normalizeRecord(raw, horizon);
+      if (r) map.set(r.id, { ...(map.get(r.id) || {}), ...r });
+    }
+    return [...map.values()].sort((a, b) => Number(b.targetDraw) - Number(a.targetDraw));
+  }
+
+  async function fetchArchive(horizon) {
+    const url = `${SERVER_FILES[horizon]}?t=${Date.now()}`;
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const records = Array.isArray(payload?.records) ? payload.records : [];
+    serverState[horizon] = records;
+    writeJsonStorage(CACHE_KEYS[horizon], records);
+    return payload;
+  }
+
+  async function syncServerArchives(force = false) {
+    if (syncInFlight) return;
+    if (!force && Date.now() - lastSyncAt < 30000) return;
+    syncInFlight = true;
+    try {
+      await Promise.all([1, 2, 3].map(fetchArchive));
+      lastSyncAt = Date.now();
+      if (byId('clusterPanel')?.classList.contains('show')) renderPanel(activeHorizon);
+    } catch (error) {
+      console.warn('KENO v6.2.2: серверные архивы временно недоступны', error);
+    } finally {
+      syncInFlight = false;
+    }
   }
 
   function placesText(candidate) {
     if (candidate.kind === 'V') return `Вертикаль М${candidate.place}`;
-    const end = candidate.place + candidate.length - 1;
+    const end = Number(candidate.place) + Number(candidate.length) - 1;
     return `Горизонталь М${candidate.place}–М${end}`;
   }
 
   function sourceText(candidate) {
-    if (candidate.sourceDraws.length === 1) return `источник №${candidate.sourceDraws[0]}`;
-    return `источник №${candidate.sourceDraws[0]}–${candidate.sourceDraws.at(-1)}`;
+    const sourceDraws = Array.isArray(candidate.sourceDraws) ? candidate.sourceDraws : [];
+    if (sourceDraws.length === 1) return `источник №${sourceDraws[0]}`;
+    if (sourceDraws.length > 1) return `источник №${sourceDraws[0]}–${sourceDraws.at(-1)}`;
+    return 'источник не указан';
   }
 
-  function numberChips(numbers, actualSet) {
-    return numbers.map(n => {
-      const hit = actualSet ? actualSet.has(Number(n)) : false;
+  function numberChips(numbers, hitSet = null) {
+    return (numbers || []).map(n => {
+      const hit = hitSet ? hitSet.has(Number(n)) : false;
       return `<span class="cluster-num ${hit ? 'hit' : ''}">${pad2(n)}${hit ? ' ✓' : ''}</span>`;
     }).join('');
   }
 
+  function actualForRecord(record) {
+    if (record?.actual?.balls?.length === 20) return record.actual;
+    return actualFromPhone(record?.targetDraw);
+  }
+
+  function outcomeFor(candidate, actual) {
+    if (!actual?.balls?.length) return null;
+    if (candidate?.outcome && Number.isFinite(Number(candidate.outcome.hitCount))) return candidate.outcome;
+    const actualSet = new Set(actual.balls.map(Number));
+    const hitNumbers = (candidate.numbers || []).filter(n => actualSet.has(Number(n)));
+    const hitCount = hitNumbers.length;
+    return {
+      hitNumbers,
+      hitCount,
+      result: hitCount === Number(candidate.length) ? 'full' : hitCount > 0 ? 'partial' : 'none',
+      payout: payoutFor(Number(candidate.length), hitCount)
+    };
+  }
+
+  function outcomeLabel(outcome, length) {
+    if (!outcome) return 'ожидает результата';
+    if (outcome.result === 'full' || Number(outcome.hitCount) === Number(length)) return 'ПОЛНАЯ СБОРКА';
+    if (Number(outcome.hitCount) > 0) return 'ЧАСТИЧНАЯ СБОРКА';
+    return 'НЕ СОСТОЯЛАСЬ';
+  }
+
   function candidateHtml(candidate, actual) {
-    const actualSet = actual ? new Set(actual.balls.map(Number)) : null;
-    const hits = actualSet ? candidate.numbers.filter(n => actualSet.has(Number(n))).length : null;
-    const full = hits === candidate.length;
-    const payout = actual ? payoutFor(candidate.length, hits) : 0;
-    const liftPercent = Math.round((candidate.lift - 1) * 100);
-    const prizeHtml = actual && payout > 0
-      ? `<div class="cluster-result prize">🔥 ${rubles(payout)}</div>`
-      : '';
-    return `<div class="cluster-card ${full ? 'cluster-full' : ''} ${payout > 0 ? 'cluster-prize' : ''}">
+    const outcome = outcomeFor(candidate, actual);
+    const hitSet = new Set((outcome?.hitNumbers || []).map(Number));
+    const liftPercent = Math.round((Number(candidate.lift || 1) - 1) * 100);
+    const payout = Number(outcome?.payout || 0);
+    const resultClass = outcome?.result === 'full' ? 'good' : outcome?.result === 'partial' ? 'partial' : '';
+    return `<div class="cluster-card ${outcome?.result === 'full' ? 'cluster-full' : ''} ${payout > 0 ? 'cluster-prize' : ''}">
       <div class="cluster-card-head"><b>${candidate.kind === 'V' ? '↕' : '↔'} ${placesText(candidate)}</b><span>${candidate.length} числа</span></div>
-      <div class="cluster-numbers">${numberChips(candidate.numbers, actualSet)}</div>
-      <div class="cluster-meta">${sourceText(candidate)} · задержка ${candidate.delay} · полных сборок ${candidate.archiveFullHits}/${candidate.archiveChecks}${liftPercent > 0 ? ` · +${liftPercent}%` : ''}</div>
-      ${prizeHtml}
+      <div class="cluster-section-label">Что прогнозировали</div>
+      <div class="cluster-numbers">${numberChips(candidate.numbers, hitSet)}</div>
+      <div class="cluster-meta">${sourceText(candidate)} · задержка ${candidate.delay} · историческая частота: ${candidate.archiveFullHits}/${candidate.archiveChecks}${liftPercent > 0 ? ` · +${liftPercent}%` : ''}</div>
+      ${actual ? `<div class="cluster-result ${resultClass}">Совпало: <b>${outcome.hitCount}/${candidate.length}</b> · ${outcomeLabel(outcome, candidate.length)}${payout > 0 ? ` · 🔥 ${rubles(payout)}` : ''}</div>` : '<div class="cluster-result">⏳ Ожидаем целевой тираж</div>'}
     </div>`;
   }
 
+  function recordSummary(record, actual) {
+    const outcomes = record.candidates.map(c => outcomeFor(c, actual)).filter(Boolean);
+    const full = outcomes.filter(x => x.result === 'full').length;
+    const partial = outcomes.filter(x => x.result === 'partial').length;
+    const none = outcomes.filter(x => x.result === 'none').length;
+    const totalPayout = outcomes.reduce((sum, x) => sum + Number(x.payout || 0), 0);
+    return { full, partial, none, totalPayout };
+  }
+
   function recordHtml(record, expanded = false) {
-    const actual = actualFor(record.targetDraw);
+    const actual = actualForRecord(record);
     const meta = HORIZONS[record.horizon] || HORIZONS[1];
-    const checkedCandidates = actual ? record.candidates.map(candidate => {
-      const actualSet = new Set(actual.balls.map(Number));
-      const hits = candidate.numbers.filter(n => actualSet.has(Number(n))).length;
-      return { candidate, hits, payout: payoutFor(candidate.length, hits) };
-    }) : [];
-    const totalPayout = checkedCandidates.reduce((sum, x) => sum + x.payout, 0);
-    const archivePrize = actual && totalPayout > 0 ? `🔥 ${rubles(totalPayout)}` : '';
-    const body = `<div class="cluster-record-summary"><b>${meta.button} №${record.targetDraw}</b><span class="${totalPayout > 0 ? 'cluster-record-prize' : ''}">${actual ? archivePrize : 'ожидает результата'}</span></div>
-      <div class="cluster-source-note">Зафиксировано после №${record.sourceDraw}. Прогноз после сохранения не меняется.</div>
+    const summary = record.summary || recordSummary(record, actual);
+    const forecastNumbers = new Set(record.candidates.flatMap(c => (c.numbers || []).map(Number)));
+    const actualHits = actual ? actual.balls.filter(n => forecastNumbers.has(Number(n))) : [];
+    const actualHitSet = new Set(actualHits.map(Number));
+    const created = record.createdAtDrawTime || [record.sourceDate, record.sourceTime].filter(Boolean).join(' ') || record.createdAt || '—';
+    const archivePrize = actual && Number(summary.totalPayout || 0) > 0 ? `🔥 ${rubles(summary.totalPayout)}` : '';
+
+    const body = `<div class="cluster-record-summary"><b>${meta.button} тираж №${record.targetDraw}</b><span class="${archivePrize ? 'cluster-record-prize' : ''}">${actual ? (archivePrize || 'проверен') : 'ожидает результата'}</span></div>
+      <div class="cluster-source-note">Дата создания прогноза: ${created}. Зафиксировано после №${record.sourceDraw}. Серверная запись после создания не меняет прогноз.</div>
       <div class="cluster-subtitle">Вертикальные сборки</div>
-      ${record.candidates.filter(x => x.kind === 'V').map(x => candidateHtml(x, actual)).join('')}
+      ${record.candidates.filter(x => x.kind === 'V').map(x => candidateHtml(x, actual)).join('') || '<div class="row small">Нет вертикальных вариантов.</div>'}
       <div class="cluster-subtitle">Горизонтальные сборки</div>
-      ${record.candidates.filter(x => x.kind === 'H').map(x => candidateHtml(x, actual)).join('')}
-      ${actual ? (() => {
-        const forecastNumbers = new Set(record.candidates.flatMap(candidate => candidate.numbers.map(Number)));
-        const actualSet = new Set(actual.balls.map(Number));
-        const combinedHits = [...forecastNumbers].filter(number => actualSet.has(Number(number)));
-        const combinedPayout = payoutFor(combinedHits.length, combinedHits.length);
-        const combinedPrizeHtml = combinedPayout > 0
-          ? `<div class="cluster-combined-prize"><span aria-hidden="true">👁️👁️</span><b>${rubles(combinedPayout)}</b></div>`
-          : '';
-        return `<div class="cluster-subtitle">Фактические 20 чисел</div><div class="cluster-actual">${numberChips(actual.balls, forecastNumbers)}</div>${combinedPrizeHtml}`;
-      })() : ''}`;
+      ${record.candidates.filter(x => x.kind === 'H').map(x => candidateHtml(x, actual)).join('') || '<div class="row small">Нет горизонтальных вариантов.</div>'}
+      ${actual ? `<div class="cluster-subtitle">Что выпало — фактические 20 чисел</div>
+        <div class="cluster-actual">${numberChips(actual.balls, forecastNumbers)}</div>
+        <div class="cluster-subtitle">Какие числа совпали</div>
+        <div class="cluster-actual">${actualHits.length ? numberChips(actualHits, actualHitSet) : '<span class="small">Совпадений нет.</span>'}</div>
+        <div class="cluster-final">Итог сборки: полных ${summary.full || 0} · частичных ${summary.partial || 0} · несостоявшихся ${summary.none || 0}${Number(summary.totalPayout || 0) > 0 ? ` · 🔥 ${rubles(summary.totalPayout)}` : ''}</div>` : ''}`;
+
     if (expanded) return `<div class="cluster-record current">${body}</div>`;
-    return `<details class="cluster-record"><summary><b>${meta.button} тираж №${record.targetDraw}</b><span class="${totalPayout > 0 ? 'cluster-record-prize' : ''}">${actual ? archivePrize : '⏳ ожидает'}</span></summary>${body}</details>`;
+    return `<details class="cluster-record"><summary><b>${meta.button} тираж №${record.targetDraw}</b><span class="${archivePrize ? 'cluster-record-prize' : ''}">${actual ? (archivePrize || '✅ проверен') : '⏳ ожидает'}</span></summary>${body}</details>`;
   }
 
   function renderPanel(horizon = activeHorizon) {
@@ -248,17 +236,19 @@
     const panel = byId('clusterPanel');
     const box = byId('clusterResult');
     if (!panel || !box) return;
-    ensureAllPredictions();
 
-    const all = readArchive().filter(x => Number(x.horizon) === activeHorizon).sort((a, b) => Number(b.targetDraw) - Number(a.targetDraw));
-    const current = all[0] || null;
-    const older = all.slice(1, 31);
+    const all = mergeRecords(activeHorizon);
+    const current = all.find(r => !actualForRecord(r)) || all[0] || null;
+    const older = current ? all.filter(r => r.id !== current.id) : all;
     const meta = HORIZONS[activeHorizon];
+    const sourceTextValue = serverState[activeHorizon]?.length ? 'сервер GitHub Actions' : (readCache(activeHorizon).length ? 'локальная копия серверного архива' : 'старый архив телефона');
+
     box.innerHTML = `<div class="cluster-title"><div><b>${meta.button} ${meta.title}</b><small>${meta.note}</small></div><span>модель: ${Number(MODEL.trainedDraws || 0).toLocaleString('ru-RU')} тиражей</span></div>
-      <div class="cluster-warning">Экспериментальный сигнал полной сборки. Он показывает расположение и числа блока, но не гарантирует выпадение.</div>
-      ${current ? recordHtml(current, true) : '<div class="row small">Недостаточно данных для построения сборок.</div>'}
-      <div class="cluster-archive-title">Архив ${meta.button}</div>
-      ${older.length ? older.map(x => recordHtml(x, false)).join('') : '<div class="row small">Завершённых прошлых записей пока нет.</div>'}`;
+      <div class="cluster-server-ok">☁️ Источник архива: ${sourceTextValue}. Телефон не обязан быть включён для создания новых записей.</div>
+      <div class="cluster-warning">Статистический сигнал, а не гарантия выигрыша.</div>
+      ${current ? recordHtml(current, true) : '<div class="row small">Серверный архив пока пуст. После первого запуска GitHub Actions записи появятся автоматически.</div>'}
+      <div class="cluster-archive-title">Отдельный архив ${meta.button} — ${older.length} записей</div>
+      ${older.length ? older.map(x => recordHtml(x, false)).join('') : '<div class="row small">Других записей пока нет.</div>'}`;
   }
 
   function updateClusterButtons(openHorizon = null) {
@@ -274,18 +264,16 @@
   function togglePanel(horizon) {
     const panel = byId('clusterPanel');
     if (!panel) return;
-    const requestedHorizon = Number(horizon) || 1;
-    const sameOpenPanel = panel.classList.contains('show') && Number(activeHorizon) === requestedHorizon;
-
-    if (sameOpenPanel) {
+    const requested = Number(horizon) || 1;
+    if (panel.classList.contains('show') && Number(activeHorizon) === requested) {
       panel.classList.remove('show');
       updateClusterButtons(null);
       return;
     }
-
-    renderPanel(requestedHorizon);
+    renderPanel(requested);
     panel.classList.add('show');
-    updateClusterButtons(requestedHorizon);
+    updateClusterButtons(requested);
+    syncServerArchives(true);
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -295,22 +283,14 @@
     style.id = 'clusterTrackerStyles';
     style.textContent = `
       .cluster-tools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
-      .cluster-button{font-size:18px;padding:8px 9px;display:flex;align-items:center;justify-content:center;gap:8px}.cluster-button.active{border-color:#72df95;background:#153a2a}.cluster-arrow{font-size:13px;line-height:1;color:#aebfd3}
-      .cluster-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:8px}
-      .cluster-title b{font-size:20px}.cluster-title small{display:block;color:var(--muted);margin-top:3px}.cluster-title>span{font-size:11px;color:var(--muted);text-align:right}
-      .cluster-warning{font-size:12px;color:#ffe6a0;background:#302812;border:1px solid #6e5b20;border-radius:9px;padding:8px;margin-bottom:9px}
-      .cluster-record{border:1px solid #2a4464;border-radius:12px;background:#0b1727;margin:8px 0;padding:8px}
-      .cluster-record.current{border-color:#4b719c}.cluster-record summary{cursor:pointer;display:flex;justify-content:space-between;gap:8px;list-style:none}
-      .cluster-record summary::-webkit-details-marker{display:none}.cluster-record-summary{display:flex;justify-content:space-between;gap:8px;font-size:14px}
-      .cluster-source-note,.cluster-meta{font-size:11px;color:var(--muted);line-height:1.4;margin-top:5px}
-      .cluster-subtitle{font-size:13px;font-weight:950;color:#dceaff;margin:10px 0 4px}
-      .cluster-card{background:#101f33;border:1px solid #263e5b;border-radius:10px;padding:8px;margin-top:6px}
-      .cluster-card.cluster-full{border-color:#43d77b;background:#123525}.cluster-card.cluster-prize{box-shadow:inset 0 0 0 1px #f39a32;border-color:#f39a32}.cluster-card-head{display:flex;justify-content:space-between;gap:8px;font-size:13px}
-      .cluster-card-head span{color:var(--muted);font-size:11px}.cluster-numbers,.cluster-actual{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-      .cluster-num{display:inline-block;min-width:38px;text-align:center;padding:5px 6px;border:1px solid #304b6d;border-radius:8px;background:#172a43;font-family:ui-monospace,Consolas,monospace;font-weight:900;font-size:13px}
-      .cluster-num.hit{border-color:#43d77b;background:#123a28;color:#c9ffda}.cluster-result{font-size:12px;font-weight:900;margin-top:6px;color:#ffcf82}.cluster-result.good{color:#72df95}.cluster-result.prize,.cluster-record-prize{color:#ffb04a;font-weight:950}
-      .cluster-combined-prize{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 2px;font-size:18px;font-weight:950;color:#ffb04a}.cluster-combined-prize span{font-size:20px;line-height:1}.cluster-combined-prize b{font:inherit}
-      .cluster-archive-title{font-size:16px;font-weight:950;margin:14px 2px 7px}
+      .cluster-button{font-size:18px;padding:8px 9px;display:flex;align-items:center;justify-content:center;gap:8px}.cluster-button.active{border-color:#72df95;background:#153a2a}.cluster-arrow{font-size:13px;color:#aebfd3}
+      .cluster-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:8px}.cluster-title b{font-size:20px}.cluster-title small{display:block;color:var(--muted);margin-top:3px}.cluster-title>span{font-size:11px;color:var(--muted);text-align:right}
+      .cluster-server-ok{font-size:12px;color:#bfffd3;background:#123525;border:1px solid #43a86b;border-radius:9px;padding:8px;margin-bottom:7px}.cluster-warning{font-size:12px;color:#ffe6a0;background:#302812;border:1px solid #6e5b20;border-radius:9px;padding:8px;margin-bottom:9px}
+      .cluster-record{border:1px solid #2a4464;border-radius:12px;background:#0b1727;margin:8px 0;padding:8px}.cluster-record.current{border-color:#4b719c}.cluster-record summary{cursor:pointer;display:flex;justify-content:space-between;gap:8px;list-style:none}.cluster-record summary::-webkit-details-marker{display:none}.cluster-record-summary{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+      .cluster-source-note,.cluster-meta{font-size:11px;color:var(--muted);line-height:1.4;margin-top:5px}.cluster-subtitle{font-size:13px;font-weight:950;color:#dceaff;margin:10px 0 4px}.cluster-section-label{font-size:11px;font-weight:900;color:#b8c9de;margin-top:7px}
+      .cluster-card{background:#101f33;border:1px solid #263e5b;border-radius:10px;padding:8px;margin-top:6px}.cluster-card.cluster-full{border-color:#43d77b;background:#123525}.cluster-card.cluster-prize{box-shadow:inset 0 0 0 1px #f39a32;border-color:#f39a32}.cluster-card-head{display:flex;justify-content:space-between;gap:8px;font-size:13px}.cluster-card-head span{color:var(--muted);font-size:11px}
+      .cluster-numbers,.cluster-actual{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.cluster-num{display:inline-block;min-width:38px;text-align:center;padding:5px 6px;border:1px solid #304b6d;border-radius:8px;background:#172a43;font-family:ui-monospace,Consolas,monospace;font-weight:900;font-size:13px}.cluster-num.hit{border-color:#43d77b;background:#123a28;color:#c9ffda}
+      .cluster-result{font-size:12px;font-weight:900;margin-top:6px;color:#ffcf82}.cluster-result.good{color:#72df95}.cluster-result.partial{color:#ffe18b}.cluster-record-prize{color:#ffb04a;font-weight:950}.cluster-final{margin-top:10px;padding:8px;border-radius:9px;background:#14253b;border:1px solid #355273;font-size:13px;font-weight:900}.cluster-archive-title{font-size:16px;font-weight:950;margin:14px 2px 7px}
     `;
     document.head.appendChild(style);
   }
@@ -338,10 +318,12 @@
     panel.innerHTML = '<div id="clusterResult"></div>';
     searchPanel.parentNode.insertBefore(panel, searchPanel);
 
-    row.querySelectorAll('[data-cluster-horizon]').forEach(button => {
-      button.addEventListener('click', () => togglePanel(Number(button.dataset.clusterHorizon)));
-    });
+    row.querySelectorAll('[data-cluster-horizon]').forEach(button => button.addEventListener('click', () => togglePanel(Number(button.dataset.clusterHorizon))));
     updateClusterButtons(null);
+  }
+
+  function allForExport(horizon) {
+    return mergeRecords(horizon).sort((a, b) => Number(a.targetDraw) - Number(b.targetDraw));
   }
 
   function enhanceImportExport() {
@@ -349,17 +331,19 @@
     if (exportButton) {
       exportButton.onclick = () => {
         const payload = {
-          version: '6.2.2',
+          version: '6.2.2-server-archives',
           exportedAt: new Date().toISOString(),
           draws: safeDraws(),
-          clusterPredictions: readArchive(),
-          plusPredictions: typeof loadPlusPredictions === 'function' ? loadPlusPredictions() : []
+          plusPredictions: typeof loadPlusPredictions === 'function' ? loadPlusPredictions() : [],
+          clusterArchiveNext: allForExport(1),
+          clusterArchiveMinus1: allForExport(2),
+          clusterArchiveMinus2: allForExport(3)
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'ПОЗИТРОН_КЕНО_v6_2_2_БАЗА_И_СБОРКИ.json';
+        link.download = 'ПОЗИТРОН_КЕНО_v6_2_2_ПОЛНЫЙ_ЭКСПОРТ.json';
         link.click();
         URL.revokeObjectURL(url);
       };
@@ -374,34 +358,32 @@
         reader.onload = () => {
           try {
             const payload = JSON.parse(String(reader.result || ''));
-            if (Array.isArray(payload.clusterPredictions)) writeArchive(payload.clusterPredictions);
+            if (Array.isArray(payload.clusterArchiveNext)) writeJsonStorage(CACHE_KEYS[1], payload.clusterArchiveNext);
+            if (Array.isArray(payload.clusterArchiveMinus1)) writeJsonStorage(CACHE_KEYS[2], payload.clusterArchiveMinus1);
+            if (Array.isArray(payload.clusterArchiveMinus2)) writeJsonStorage(CACHE_KEYS[3], payload.clusterArchiveMinus2);
+            if (Array.isArray(payload.clusterPredictions)) writeJsonStorage(LEGACY_KEY, payload.clusterPredictions);
             if (Array.isArray(payload.plusPredictions) && typeof savePlusPredictions === 'function') savePlusPredictions(payload.plusPredictions);
-            setTimeout(() => renderPanel(activeHorizon), 50);
-          } catch (_) {
-            // Обычный JSON/CSV продолжает обрабатываться основным импортом.
-          }
+            serverState = { 1: [], 2: [], 3: [] };
+            setTimeout(() => { if (byId('clusterPanel')?.classList.contains('show')) renderPanel(activeHorizon); syncServerArchives(true); }, 50);
+          } catch (_) {}
         };
         reader.readAsText(file, 'UTF-8');
       });
     }
   }
 
-  function refreshIfNeeded() {
-    const latest = Number(safeDraws().at(-1)?.draw || 0);
-    if (!latest || latest === lastSeenDraw) return;
-    lastSeenDraw = latest;
-    ensureAllPredictions();
-    if (byId('clusterPanel')?.classList.contains('show')) renderPanel(activeHorizon);
-  }
-
   function start() {
     injectStyles();
     injectUi();
     enhanceImportExport();
-    refreshIfNeeded();
+    syncServerArchives(true);
+
     const status = byId('status');
-    if (status) new MutationObserver(() => setTimeout(refreshIfNeeded, 0)).observe(status, { childList: true, characterData: true, subtree: true });
-    setInterval(refreshIfNeeded, 10000);
+    if (status) {
+      new MutationObserver(() => setTimeout(() => syncServerArchives(false), 0))
+        .observe(status, { childList: true, characterData: true, subtree: true });
+    }
+    setInterval(() => syncServerArchives(false), 60000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
