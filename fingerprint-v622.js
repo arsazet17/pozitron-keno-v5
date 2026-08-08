@@ -1,710 +1,134 @@
 'use strict';
-
-/*
-  ПОЗИТРОН КЕНО v6.2.2 — отдельный модуль 🧭 FINGERPRINT
-
-  ВАЖНО:
-  - не изменяет cluster-model-v622.js;
-  - не изменяет cluster-tracker-v622.js;
-  - не изменяет существующие архивы сборок;
-  - не изменяет Аналоги+, базу, автообновление и workflow;
-  - читает существующие серверные архивы сборок только как источник сигналов;
-  - пишет только в собственные localStorage-ключи FINGERPRINT.
-*/
-
+/* ПОЗИТРОН КЕНО v6.2.2 — отдельный модуль 🧭 FINGERPRINT */
 (() => {
-  const VERSION = '1.0.0';
+  const VERSION='1.0.1';
+  const CFG=Object.freeze({neighbors:5,window:80,pool:20,sizes:[3,4,5],perSize:2,eps:.02});
+  const META={1:{button:'🎯'},2:{button:'⏳−1'},3:{button:'⏳−2'}};
+  const FILES={1:'./cluster-archive-next-v622.json',2:'./cluster-archive-minus1-v622.json',3:'./cluster-archive-minus2-v622.json'};
+  const KEYS={1:'pozitron_v622_fingerprint_archive_h1_v1',2:'pozitron_v622_fingerprint_archive_h2_v1',3:'pozitron_v622_fingerprint_archive_h3_v1'};
+  const state={h:1,archive:false,payload:{1:null,2:null,3:null},syncing:false,last:0};
+  const $=id=>document.getElementById(id);
+  const num=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+  const pad=n=>String(Number(n)).padStart(2,'0');
+  const phoneDraws=()=>{try{return typeof draws!=='undefined'&&Array.isArray(draws)?draws:[]}catch(_){return[]}};
+  const read=h=>{try{const x=JSON.parse(localStorage.getItem(KEYS[h])||'[]');return Array.isArray(x)?x:[]}catch(_){return[]}};
+  const write=(h,a)=>{try{localStorage.setItem(KEYS[h],JSON.stringify((a||[]).slice(-300)))}catch(_){}};
 
-  const CONFIG = Object.freeze({
-    neighbors: 5,
-    historyWindow: 80,
-    poolSize: 20,
-    distanceEpsilon: 0.02,
-    comboSizes: Object.freeze([3, 4, 5]),
-    combosPerSize: 2
-  });
-
-  const HORIZONS = Object.freeze({
-    1: Object.freeze({ button: '🎯', title: 'Следующий тираж' }),
-    2: Object.freeze({ button: '⏳−1', title: 'Через один тираж' }),
-    3: Object.freeze({ button: '⏳−2', title: 'Через два тиража' })
-  });
-
-  const SERVER_FILES = Object.freeze({
-    1: './cluster-archive-next-v622.json',
-    2: './cluster-archive-minus1-v622.json',
-    3: './cluster-archive-minus2-v622.json'
-  });
-
-  const STORAGE_KEYS = Object.freeze({
-    1: 'pozitron_v622_fingerprint_archive_h1_v1',
-    2: 'pozitron_v622_fingerprint_archive_h2_v1',
-    3: 'pozitron_v622_fingerprint_archive_h3_v1'
-  });
-
-  const state = {
-    activeHorizon: 1,
-    archiveMode: false,
-    payloads: { 1: null, 2: null, 3: null },
-    syncing: false,
-    lastSyncAt: 0
-  };
-
-  const byId = id => document.getElementById(id);
-  const pad2 = n => String(Number(n)).padStart(2, '0');
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value)));
-  const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-
-  function safeDraws() {
-    try {
-      if (typeof draws !== 'undefined' && Array.isArray(draws)) return draws;
-    } catch (_) {}
-    return [];
+  function actualPhone(target){
+    const d=phoneDraws().find(x=>Number(x?.draw)===Number(target));
+    const balls=Array.isArray(d?.balls)?d.balls.map(Number).slice(0,20):[];
+    return balls.length===20?{targetDraw:Number(d.draw),date:String(d.date||''),time:String(d.time||''),balls}:null;
+  }
+  function normCandidate(c){
+    const numbers=Array.isArray(c?.numbers)?c.numbers.map(Number).filter(n=>n>=1&&n<=80):[];
+    return {kind:c?.kind==='H'?'H':'V',score:Math.max(.0001,num(c?.score)),delay:Math.max(1,Math.min(10,num(c?.delay,1))),numbers};
+  }
+  function normRecord(r,h){
+    const target=num(r?.targetDraw); if(!target)return null;
+    return {id:String(r?.id||`${h}:${target}`),horizon:num(r?.horizon,h),sourceDraw:num(r?.sourceDraw),targetDraw:target,
+      candidates:Array.isArray(r?.candidates)?r.candidates.map(normCandidate):[],
+      actual:r?.actual&&Array.isArray(r.actual.balls)&&r.actual.balls.length===20?{targetDraw:num(r.actual.targetDraw,target),date:String(r.actual.date||''),time:String(r.actual.time||''),balls:r.actual.balls.map(Number).slice(0,20)}:null};
+  }
+  function actualCluster(r){return r?.actual?.balls?.length===20?r.actual:actualPhone(r?.targetDraw)}
+  function actualFP(r){
+    const p=state.payload[Number(r?.horizon)];
+    const cr=p?.records?.find(x=>Number(x.targetDraw)===Number(r?.targetDraw));
+    return cr?actualCluster(cr)||actualPhone(r?.targetDraw):actualPhone(r?.targetDraw);
+  }
+  async function fetchH(h){
+    const res=await fetch(`${FILES[h]}?t=${Date.now()}`,{cache:'no-store'}); if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    const raw=await res.json();
+    const records=(Array.isArray(raw?.records)?raw.records:[]).map(x=>normRecord(x,h)).filter(Boolean).sort((a,b)=>a.targetDraw-b.targetDraw);
+    return state.payload[h]={h,records};
   }
 
-  function readArchive(horizon) {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEYS[horizon]) || '[]');
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (_) {
-      return [];
+  function vector(r){
+    const cs=r?.candidates||[], total=cs.reduce((s,c)=>s+c.score,0)||1, v=[];
+    for(let n=1;n<=80;n++){
+      const hit=cs.filter(c=>c.numbers.includes(n));
+      const sc=hit.reduce((s,c)=>s+c.score,0)/total;
+      const dl=hit.reduce((s,c)=>s+c.score*((11-c.delay)/10),0)/total;
+      v.push(hit.length/6,hit.filter(c=>c.kind==='V').length/3,hit.filter(c=>c.kind==='H').length/3,sc,dl);
     }
+    return v;
   }
-
-  function writeArchive(horizon, records) {
-    try {
-      const clean = Array.isArray(records) ? records.slice(-300) : [];
-      localStorage.setItem(STORAGE_KEYS[horizon], JSON.stringify(clean));
-    } catch (_) {}
+  function currentSupport(r){
+    const out=Array(81).fill(0),cs=r?.candidates||[],total=cs.reduce((s,c)=>s+c.score,0)||1;
+    cs.forEach(c=>c.numbers.forEach(n=>{if(n>=1&&n<=80)out[n]+=c.score/total})); return out;
   }
-
-  function saveForecast(record) {
-    const horizon = Number(record.horizon);
-    const records = readArchive(horizon);
-    const id = String(record.id);
-    const existing = records.find(item => String(item?.id) === id);
-    if (existing) return { record: existing, created: false };
-
-    records.push(record);
-    records.sort((a, b) => Number(a.targetDraw) - Number(b.targetDraw));
-    writeArchive(horizon, records);
-    return { record, created: true };
+  function dist(a,b){let s=0;if(!a.length||a.length!==b.length)return Infinity;for(let i=0;i<a.length;i++)s+=Math.abs(a[i]-b[i]);return s/a.length}
+  function neighbors(records,current){
+    const cv=vector(current);
+    const eligible=records.filter(r=>r.targetDraw<current.targetDraw&&actualCluster(r)?.balls?.length===20).slice(-CFG.window);
+    if(eligible.length<CFG.neighbors)return[];
+    const top=eligible.map(r=>({record:r,actual:actualCluster(r),distance:dist(cv,vector(r))})).filter(x=>Number.isFinite(x.distance)).sort((a,b)=>a.distance-b.distance||b.record.targetDraw-a.record.targetDraw).slice(0,CFG.neighbors);
+    const rw=top.map(x=>1/(x.distance+CFG.eps)),sum=rw.reduce((a,b)=>a+b,0)||1;
+    return top.map((x,i)=>({...x,weight:rw[i]/sum}));
   }
-
-  function normalizeCandidate(raw) {
-    const numbers = Array.isArray(raw?.numbers)
-      ? raw.numbers.map(Number).filter(n => n >= 1 && n <= 80)
-      : [];
-
-    return {
-      kind: raw?.kind === 'H' ? 'H' : 'V',
-      length: finite(raw?.length, numbers.length),
-      place: finite(raw?.place, 0),
-      delay: clamp(finite(raw?.delay, 1), 1, 10),
-      score: Math.max(0, finite(raw?.score, 0)),
-      lift: finite(raw?.lift, 1),
-      validationLift: finite(raw?.validationLift, 1),
-      numbers
-    };
+  function pool20(ns,current){
+    const votes=Array(81).fill(0),support=currentSupport(current);
+    ns.forEach(x=>{const set=new Set(x.actual.balls.map(Number));for(let n=1;n<=80;n++)if(set.has(n))votes[n]+=x.weight});
+    const pool=Array.from({length:80},(_,i)=>i+1).sort((a,b)=>votes[b]-votes[a]||support[b]-support[a]||a-b).slice(0,CFG.pool);
+    return {pool,votes,support};
   }
-
-  function normalizeClusterRecord(raw, horizon) {
-    const targetDraw = finite(raw?.targetDraw, 0);
-    if (!targetDraw) return null;
-
-    return {
-      id: String(raw?.id || `${horizon}:${targetDraw}`),
-      horizon: finite(raw?.horizon, horizon),
-      sourceDraw: finite(raw?.sourceDraw, 0),
-      targetDraw,
-      status: String(raw?.status || ''),
-      candidates: Array.isArray(raw?.candidates) ? raw.candidates.map(normalizeCandidate) : [],
-      actual: raw?.actual && Array.isArray(raw.actual.balls)
-        ? {
-            targetDraw: finite(raw.actual.targetDraw, targetDraw),
-            date: String(raw.actual.date || ''),
-            time: String(raw.actual.time || ''),
-            balls: raw.actual.balls.map(Number).filter(n => n >= 1 && n <= 80).slice(0, 20)
-          }
-        : null
-    };
+  function eachCombo(values,k,fn){
+    const a=[];function walk(start){if(a.length===k){fn(a.slice());return}const left=k-a.length;for(let i=start;i<=values.length-left;i++){a.push(values[i]);walk(i+1);a.pop()}} if(values.length>=k)walk(0);
   }
-
-  function actualFromPhone(targetDraw) {
-    const draw = safeDraws().find(item => Number(item?.draw) === Number(targetDraw));
-    const balls = Array.isArray(draw?.balls) ? draw.balls.map(Number).slice(0, 20) : [];
-    if (balls.length !== 20) return null;
-    return {
-      targetDraw: Number(draw.draw),
-      date: String(draw.date || ''),
-      time: String(draw.time || ''),
-      balls
-    };
-  }
-
-  function actualForClusterRecord(record) {
-    if (record?.actual?.balls?.length === 20) return record.actual;
-    return actualFromPhone(record?.targetDraw);
-  }
-
-  function actualForFingerprintRecord(record) {
-    const payload = state.payloads[Number(record?.horizon)];
-    const clusterRecord = payload?.records?.find(item => Number(item.targetDraw) === Number(record?.targetDraw));
-    if (clusterRecord) {
-      const actual = actualForClusterRecord(clusterRecord);
-      if (actual) return actual;
-    }
-    return actualFromPhone(record?.targetDraw);
-  }
-
-  async function fetchHorizon(horizon) {
-    const url = `${SERVER_FILES[horizon]}?t=${Date.now()}`;
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const raw = await response.json();
-    const records = (Array.isArray(raw?.records) ? raw.records : [])
-      .map(item => normalizeClusterRecord(item, horizon))
-      .filter(Boolean)
-      .sort((a, b) => Number(a.targetDraw) - Number(b.targetDraw));
-
-    const payload = {
-      horizon,
-      latestHistoryDraw: finite(raw?.latestHistoryDraw, 0),
-      records
-    };
-    state.payloads[horizon] = payload;
-    return payload;
-  }
-
-  function buildFingerprintVector(record) {
-    const candidates = Array.isArray(record?.candidates) ? record.candidates : [];
-    const totalScore = candidates.reduce((sum, candidate) => sum + Math.max(0.0001, finite(candidate.score, 0)), 0) || 1;
-    const vector = [];
-
-    for (let number = 1; number <= 80; number += 1) {
-      const containing = candidates.filter(candidate => candidate.numbers.includes(number));
-      const support = containing.length / 6;
-      const vertical = containing.filter(candidate => candidate.kind === 'V').length / 3;
-      const horizontal = containing.filter(candidate => candidate.kind === 'H').length / 3;
-      const scoreShare = containing.reduce((sum, candidate) => sum + Math.max(0.0001, finite(candidate.score, 0)), 0) / totalScore;
-      const delayShare = containing.reduce((sum, candidate) => {
-        const score = Math.max(0.0001, finite(candidate.score, 0));
-        const delayFactor = (11 - clamp(candidate.delay, 1, 10)) / 10;
-        return sum + score * delayFactor;
-      }, 0) / totalScore;
-
-      vector.push(support, vertical, horizontal, scoreShare, delayShare);
-    }
-
-    return vector;
-  }
-
-  function currentNumberSupport(record) {
-    const out = Array(81).fill(0);
-    const candidates = Array.isArray(record?.candidates) ? record.candidates : [];
-    const totalScore = candidates.reduce((sum, candidate) => sum + Math.max(0.0001, finite(candidate.score, 0)), 0) || 1;
-
-    for (const candidate of candidates) {
-      const share = Math.max(0.0001, finite(candidate.score, 0)) / totalScore;
-      for (const number of candidate.numbers) {
-        if (number >= 1 && number <= 80) out[number] += share;
-      }
-    }
-    return out;
-  }
-
-  function manhattanDistance(a, b) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || !a.length) return Infinity;
-    let total = 0;
-    for (let i = 0; i < a.length; i += 1) total += Math.abs(finite(a[i], 0) - finite(b[i], 0));
-    return total / a.length;
-  }
-
-  function selectNeighbors(records, current) {
-    const currentVector = buildFingerprintVector(current);
-    const eligible = records
-      .filter(record => Number(record.targetDraw) < Number(current.targetDraw))
-      .filter(record => actualForClusterRecord(record)?.balls?.length === 20)
-      .slice(-CONFIG.historyWindow);
-
-    if (eligible.length < CONFIG.neighbors) return [];
-
-    const ranked = eligible
-      .map(record => ({
-        record,
-        actual: actualForClusterRecord(record),
-        distance: manhattanDistance(currentVector, buildFingerprintVector(record))
-      }))
-      .filter(item => Number.isFinite(item.distance))
-      .sort((a, b) => a.distance - b.distance || Number(b.record.targetDraw) - Number(a.record.targetDraw))
-      .slice(0, CONFIG.neighbors);
-
-    const rawWeights = ranked.map(item => 1 / (item.distance + CONFIG.distanceEpsilon));
-    const weightTotal = rawWeights.reduce((sum, value) => sum + value, 0) || 1;
-
-    return ranked.map((item, index) => ({
-      ...item,
-      weight: rawWeights[index] / weightTotal
-    }));
-  }
-
-  function buildPool20(neighbors, current) {
-    const votes = Array(81).fill(0);
-    const currentSupport = currentNumberSupport(current);
-
-    for (const neighbor of neighbors) {
-      const actualSet = new Set(neighbor.actual.balls.map(Number));
-      for (let number = 1; number <= 80; number += 1) {
-        if (actualSet.has(number)) votes[number] += neighbor.weight;
-      }
-    }
-
-    const pool20 = Array.from({ length: 80 }, (_, index) => index + 1)
-      .sort((a, b) => votes[b] - votes[a] || currentSupport[b] - currentSupport[a] || a - b)
-      .slice(0, CONFIG.poolSize);
-
-    return { pool20, votes, currentSupport };
-  }
-
-  function forEachCombination(values, size, callback) {
-    const chosen = [];
-
-    function walk(start) {
-      if (chosen.length === size) {
-        callback(chosen.slice());
-        return;
-      }
-      const remaining = size - chosen.length;
-      for (let index = start; index <= values.length - remaining; index += 1) {
-        chosen.push(values[index]);
-        walk(index + 1);
-        chosen.pop();
-      }
-    }
-
-    if (size > 0 && values.length >= size) walk(0);
-  }
-
-  function buildCombos(neighbors, pool20, votes, currentSupport, size) {
-    const poolSet = new Set(pool20);
-    const map = new Map();
-
-    for (const neighbor of neighbors) {
-      const intersection = [...new Set(neighbor.actual.balls.map(Number).filter(number => poolSet.has(number)))].sort((a, b) => a - b);
-      forEachCombination(intersection, size, combo => {
-        const key = combo.join('-');
-        const item = map.get(key) || {
-          numbers: combo,
-          neighborWeight: 0,
-          neighborCount: 0
-        };
-        item.neighborWeight += neighbor.weight;
-        item.neighborCount += 1;
-        map.set(key, item);
-      });
-    }
-
-    const ranked = [...map.values()].map(item => {
-      const voteMean = item.numbers.reduce((sum, number) => sum + votes[number], 0) / size;
-      const currentMean = item.numbers.reduce((sum, number) => sum + currentSupport[number], 0) / size;
-      return {
-        ...item,
-        voteMean,
-        currentMean,
-        rankScore: item.neighborWeight * 1000 + item.neighborCount * 10 + voteMean + currentMean / 100
-      };
-    }).sort((a, b) =>
-      b.rankScore - a.rankScore ||
-      b.neighborCount - a.neighborCount ||
-      b.neighborWeight - a.neighborWeight ||
-      a.numbers.join('-').localeCompare(b.numbers.join('-'))
-    );
-
-    return ranked.slice(0, CONFIG.combosPerSize).map((item, index) => ({
-      id: `K${size}-${index + 1}`,
-      size,
-      numbers: item.numbers.slice(),
-      neighborCount: item.neighborCount,
-      neighborWeight: Number(item.neighborWeight.toFixed(6))
-    }));
-  }
-
-  function calculateForecast(payload, current) {
-    const neighbors = selectNeighbors(payload.records, current);
-    if (neighbors.length < CONFIG.neighbors) return null;
-
-    const { pool20, votes, currentSupport } = buildPool20(neighbors, current);
-    const combos = CONFIG.comboSizes.flatMap(size => buildCombos(neighbors, pool20, votes, currentSupport, size));
-
-    if (combos.filter(item => item.size === 3).length < 2) return null;
-    if (combos.filter(item => item.size === 4).length < 2) return null;
-    if (combos.filter(item => item.size === 5).length < 2) return null;
-
-    return {
-      id: `fp:${current.horizon}:${current.targetDraw}`,
-      version: VERSION,
-      horizon: Number(current.horizon),
-      sourceDraw: Number(current.sourceDraw),
-      targetDraw: Number(current.targetDraw),
-      createdAt: new Date().toISOString(),
-      method: 'fingerprint-manhattan-distance-weighted',
-      settings: {
-        neighbors: CONFIG.neighbors,
-        historyWindow: CONFIG.historyWindow,
-        poolSize: CONFIG.poolSize
-      },
-      neighbors: neighbors.map(item => ({
-        targetDraw: Number(item.record.targetDraw),
-        sourceDraw: Number(item.record.sourceDraw),
-        distance: Number(item.distance.toFixed(6)),
-        weight: Number(item.weight.toFixed(6))
-      })),
-      pool20: pool20.slice(),
-      combos
-    };
-  }
-
-  function findCurrentClusterRecord(payload) {
-    if (!payload?.records?.length) return null;
-    return [...payload.records]
-      .sort((a, b) => Number(b.targetDraw) - Number(a.targetDraw))
-      .find(record => !actualForClusterRecord(record));
-  }
-
-  function ensureCurrentForecast(horizon) {
-    const payload = state.payloads[horizon];
-    if (!payload) return null;
-
-    const current = findCurrentClusterRecord(payload);
-    if (!current) return null;
-
-    const id = `fp:${horizon}:${current.targetDraw}`;
-    const existing = readArchive(horizon).find(item => String(item?.id) === id);
-    if (existing) return { record: existing, created: false };
-
-    const calculated = calculateForecast(payload, current);
-    if (!calculated) return null;
-    return saveForecast(calculated);
-  }
-
-  function hitSetFor(numbers, actual) {
-    const actualSet = new Set((actual?.balls || []).map(Number));
-    return new Set((numbers || []).map(Number).filter(number => actualSet.has(number)));
-  }
-
-  function chips(numbers, hitSet = null) {
-    return (numbers || []).map(number => {
-      const hit = hitSet ? hitSet.has(Number(number)) : false;
-      return `<span class="fp-num ${hit ? 'hit' : ''}">${pad2(number)}${hit ? ' ✓' : ''}</span>`;
-    }).join('');
-  }
-
-  function comboHtml(combo, actual) {
-    const hits = actual ? hitSetFor(combo.numbers, actual) : null;
-    const hitCount = hits ? hits.size : 0;
-    const support = `${combo.neighborCount}/${CONFIG.neighbors}`;
-
-    return `<div class="fp-combo">
-      <div class="fp-combo-head"><b>${combo.id}</b><span>${actual ? `${hitCount}/${combo.size}` : `в аналогах ${support}`}</span></div>
-      <div class="fp-numbers">${chips(combo.numbers, hits)}</div>
-      ${actual ? `<div class="fp-combo-note">поддержка до тиража: ${support} ближайших аналогов</div>` : ''}
-    </div>`;
-  }
-
-  function forecastHtml(record, expanded = true) {
-    const actual = actualForFingerprintRecord(record);
-    const meta = HORIZONS[record.horizon] || HORIZONS[1];
-    const poolHits = actual ? hitSetFor(record.pool20, actual) : null;
-    const poolHitCount = poolHits ? poolHits.size : 0;
-    const groups = CONFIG.comboSizes.map(size => {
-      const items = record.combos.filter(combo => Number(combo.size) === size);
-      return `<div class="fp-section-label">К${size}</div>${items.map(combo => comboHtml(combo, actual)).join('')}`;
-    }).join('');
-
-    const body = `<div class="fp-record-head"><b>${meta.button} тираж №${record.targetDraw}</b><span>${actual ? `пул ${poolHitCount}/20` : 'ожидает результата'}</span></div>
-      <div class="fp-note">Зафиксировано после №${record.sourceDraw}. После сохранения прогноз не меняется.</div>
-      ${groups}
-      <div class="fp-section-label">ПУЛ 20</div>
-      <div class="fp-numbers fp-pool">${chips(record.pool20, poolHits)}</div>
-      <details class="fp-neighbors"><summary>5 ближайших исторических аналогов</summary>
-        ${record.neighbors.map((item, index) => `<div>${index + 1}. №${item.targetDraw} · дистанция ${item.distance.toFixed(4)}</div>`).join('')}
-      </details>`;
-
-    if (expanded) return `<div class="fp-record current">${body}</div>`;
-    return `<details class="fp-record"><summary><b>${meta.button} №${record.targetDraw}</b><span>${actual ? `пул ${poolHitCount}/20` : '⏳'}</span></summary>${body}</details>`;
-  }
-
-  function currentFingerprintRecord(horizon) {
-    const payload = state.payloads[horizon];
-    const currentCluster = findCurrentClusterRecord(payload);
-    if (!currentCluster) return null;
-    const id = `fp:${horizon}:${currentCluster.targetDraw}`;
-    return readArchive(horizon).find(item => String(item?.id) === id) || null;
-  }
-
-  function renderCurrent() {
-    const box = byId('fingerprintResult');
-    if (!box) return;
-
-    const meta = HORIZONS[state.activeHorizon];
-    const record = currentFingerprintRecord(state.activeHorizon);
-    const payload = state.payloads[state.activeHorizon];
-
-    if (!payload) {
-      box.innerHTML = '<div class="fp-message">Загружаю серверный архив сигналов…</div>';
-      return;
-    }
-
-    const currentCluster = findCurrentClusterRecord(payload);
-    if (!currentCluster) {
-      box.innerHTML = '<div class="fp-message">Серверный архив ещё не содержит будущего целевого тиража.</div>';
-      return;
-    }
-
-    if (!record) {
-      box.innerHTML = `<div class="fp-message">Для ${meta.button} пока недостаточно завершённых исторических отпечатков.</div>`;
-      return;
-    }
-
-    box.innerHTML = forecastHtml(record, true);
-  }
-
-  function renderArchive() {
-    const box = byId('fingerprintResult');
-    if (!box) return;
-
-    const records = readArchive(state.activeHorizon).sort((a, b) => Number(b.targetDraw) - Number(a.targetDraw));
-    const meta = HORIZONS[state.activeHorizon];
-
-    box.innerHTML = `<div class="fp-archive-head">📚 Архив FINGERPRINT ${meta.button}</div>
-      ${records.length ? records.map(record => forecastHtml(record, false)).join('') : '<div class="fp-message">Архив пока пуст.</div>'}`;
-  }
-
-  function updateInnerButtons() {
-    document.querySelectorAll('[data-fp-horizon]').forEach(button => {
-      const horizon = Number(button.dataset.fpHorizon);
-      button.classList.toggle('active', !state.archiveMode && horizon === state.activeHorizon);
+  function combos(ns,pool,votes,support,k){
+    const ranked=[],threshold=Math.max(2,k-1),pairs=k*(k-1)/2||1;
+    eachCombo(pool,k,c=>{
+      let fullW=0,fullN=0,supW=0,supN=0,covW=0,pairW=0;
+      ns.forEach(x=>{const set=new Set(x.actual.balls.map(Number));let hits=0,ph=0;c.forEach(n=>{if(set.has(n))hits++});for(let i=0;i<c.length;i++)if(set.has(c[i]))for(let j=i+1;j<c.length;j++)if(set.has(c[j]))ph++;
+        covW+=x.weight*(hits/k);pairW+=x.weight*(ph/pairs);if(hits>=threshold){supW+=x.weight;supN++}if(hits===k){fullW+=x.weight;fullN++}});
+      const vm=c.reduce((s,n)=>s+votes[n],0)/k,cm=c.reduce((s,n)=>s+support[n],0)/k;
+      ranked.push({numbers:c,neighborCount:supN,neighborWeight:supW,rank:fullW*5000+fullN*500+supW*1200+supN*80+pairW*600+covW*300+vm*100+cm});
     });
-    byId('fingerprintArchiveBtn')?.classList.toggle('active', state.archiveMode);
+    ranked.sort((a,b)=>b.rank-a.rank||b.neighborCount-a.neighborCount||b.neighborWeight-a.neighborWeight||a.numbers.join('-').localeCompare(b.numbers.join('-')));
+    return ranked.slice(0,CFG.perSize).map((x,i)=>({id:`K${k}-${i+1}`,size:k,numbers:x.numbers,neighborCount:x.neighborCount,neighborWeight:Number(x.neighborWeight.toFixed(6))}));
+  }
+  function calculate(payload,current){
+    const ns=neighbors(payload.records,current); if(ns.length<CFG.neighbors)return null;
+    const p=pool20(ns,current),all=CFG.sizes.flatMap(k=>combos(ns,p.pool,p.votes,p.support,k));
+    if(CFG.sizes.some(k=>all.filter(x=>x.size===k).length<CFG.perSize))return null;
+    return {id:`fp:${current.horizon}:${current.targetDraw}`,version:VERSION,horizon:Number(current.horizon),sourceDraw:Number(current.sourceDraw),targetDraw:Number(current.targetDraw),createdAt:new Date().toISOString(),method:'fingerprint-manhattan-distance-weighted',settings:{neighbors:5,historyWindow:80,poolSize:20},neighbors:ns.map(x=>({targetDraw:x.record.targetDraw,sourceDraw:x.record.sourceDraw,distance:Number(x.distance.toFixed(6)),weight:Number(x.weight.toFixed(6))})),pool20:p.pool.slice(),combos:all};
+  }
+  function pending(payload){return payload?.records?.slice().sort((a,b)=>b.targetDraw-a.targetDraw).find(r=>!actualCluster(r))||null}
+  function ensure(h){
+    const p=state.payload[h],cur=pending(p); if(!p||!cur)return null; const id=`fp:${h}:${cur.targetDraw}`,a=read(h),old=a.find(x=>String(x.id)===id); if(old)return old;
+    const rec=calculate(p,cur);if(!rec)return null;a.push(rec);a.sort((x,y)=>x.targetDraw-y.targetDraw);write(h,a);return rec;
   }
 
-  function renderPanel() {
-    updateInnerButtons();
-    if (state.archiveMode) renderArchive();
-    else renderCurrent();
+  const hitSet=(nums,actual)=>{const s=new Set(actual?.balls||[]);return new Set((nums||[]).filter(n=>s.has(Number(n))))};
+  const chips=(nums,hits)=>nums.map(n=>`<span class="fp-num ${hits?.has(Number(n))?'hit':''}">${pad(n)}${hits?.has(Number(n))?' ✓':''}</span>`).join('');
+  function comboHtml(c,actual){const hs=actual?hitSet(c.numbers,actual):null,hc=hs?hs.size:0,sup=`${c.neighborCount}/${CFG.neighbors}`;return `<div class="fp-combo"><div class="fp-combo-head"><b>${c.id}</b><span>${actual?`${hc}/${c.size}`:`в аналогах ${sup}`}</span></div><div class="fp-numbers">${chips(c.numbers,hs)}</div>${actual?`<div class="fp-note">поддержка до тиража: ${sup} ближайших аналогов</div>`:''}</div>`}
+  function forecastHtml(r,open=true){
+    const actual=actualFP(r),ph=actual?hitSet(r.pool20,actual):null,pc=ph?ph.size:0,groups=CFG.sizes.map(k=>`<div class="fp-label">К${k}</div>${r.combos.filter(c=>c.size===k).map(c=>comboHtml(c,actual)).join('')}`).join('');
+    const body=`<div class="fp-head"><b>${META[r.horizon]?.button||'🎯'} тираж №${r.targetDraw}</b><span>${actual?`пул ${pc}/20`:'ожидает результата'}</span></div><div class="fp-note">Зафиксировано после №${r.sourceDraw}. Прогноз не меняется.</div>${groups}<div class="fp-label">ПУЛ 20</div><div class="fp-numbers">${chips(r.pool20,ph)}</div><details class="fp-nei"><summary>5 ближайших исторических аналогов</summary>${r.neighbors.map((x,i)=>`<div>${i+1}. №${x.targetDraw} · дистанция ${x.distance.toFixed(4)}</div>`).join('')}</details>`;
+    return open?`<div class="fp-record">${body}</div>`:`<details class="fp-record"><summary><b>${META[r.horizon]?.button} №${r.targetDraw}</b><span>${actual?`пул ${pc}/20`:'⏳'}</span></summary>${body}</details>`;
   }
-
-  async function syncAll(force = false) {
-    if (state.syncing) return;
-    if (!force && Date.now() - state.lastSyncAt < 30000) return;
-
-    state.syncing = true;
-    try {
-      const results = await Promise.allSettled([1, 2, 3].map(fetchHorizon));
-      state.lastSyncAt = Date.now();
-
-      for (let horizon = 1; horizon <= 3; horizon += 1) {
-        if (results[horizon - 1]?.status === 'fulfilled') ensureCurrentForecast(horizon);
-      }
-
-      if (!byId('fingerprintPanel')?.hidden) renderPanel();
-    } catch (_) {
-      if (!byId('fingerprintPanel')?.hidden) {
-        const box = byId('fingerprintResult');
-        if (box) box.innerHTML = '<div class="fp-message">FINGERPRINT: серверные архивы временно недоступны.</div>';
-      }
-    } finally {
-      state.syncing = false;
-    }
+  function currentRecord(h){const cur=pending(state.payload[h]);if(!cur)return null;return read(h).find(x=>String(x.id)===`fp:${h}:${cur.targetDraw}`)||null}
+  function render(){
+    const box=$('fingerprintResult');if(!box)return;
+    document.querySelectorAll('[data-fp-h]').forEach(b=>b.classList.toggle('active',!state.archive&&Number(b.dataset.fpH)===state.h));$('fingerprintArchiveBtn')?.classList.toggle('active',state.archive);
+    if(state.archive){const a=read(state.h).sort((x,y)=>y.targetDraw-x.targetDraw);box.innerHTML=`<div class="fp-archive-head">📚 Архив FINGERPRINT ${META[state.h].button}</div>${a.length?a.map(r=>forecastHtml(r,false)).join(''):'<div class="fp-msg">Архив пока пуст.</div>'}`;return}
+    const p=state.payload[state.h];if(!p){box.innerHTML='<div class="fp-msg">Загружаю серверный архив сигналов…</div>';return}const cur=pending(p);if(!cur){box.innerHTML='<div class="fp-msg">Серверный архив ещё не содержит будущего целевого тиража.</div>';return}
+    const r=currentRecord(state.h)||ensure(state.h);box.innerHTML=r?forecastHtml(r,true):`<div class="fp-msg">Для ${META[state.h].button} не удалось построить прогноз из серверного архива.</div>`;
   }
+  async function sync(force=false){if(state.syncing||(!force&&Date.now()-state.last<30000))return;state.syncing=true;try{const rs=await Promise.allSettled([1,2,3].map(fetchH));state.last=Date.now();[1,2,3].forEach((h,i)=>{if(rs[i].status==='fulfilled')ensure(h)});if(!$('fingerprintPanel')?.hidden)render()}finally{state.syncing=false}}
 
-  function injectStyles() {
-    if (byId('fingerprintStyles')) return;
-
-    const style = document.createElement('style');
-    style.id = 'fingerprintStyles';
-    style.textContent = `
-      #fpMainToolsLayout{display:grid;gap:6px;margin-top:6px}
-      .fp-main-row{display:grid;gap:6px}
-      .fp-main-row.row-3{grid-template-columns:repeat(3,minmax(0,1fr))}
-      .fp-main-row.row-2-fixed{grid-template-columns:repeat(3,minmax(0,1fr))}
-      #fpMainToolsLayout .tool{min-width:0;min-height:48px;padding:8px 4px;white-space:normal}
-      #fingerprintMainBtn{font-weight:900}
-      #fingerprintMainBtn.active{border-color:#72df95;background:#153a2a}
-      #fingerprintPanel[hidden]{display:none!important}
-      #fingerprintPanel{margin-top:8px}
-      .fp-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:8px}
-      .fp-title b{font-size:20px}.fp-title span{font-size:11px;color:var(--muted);text-align:right}
-      .fp-warning{font-size:12px;color:#ffe6a0;background:#302812;border:1px solid #6e5b20;border-radius:9px;padding:8px;margin-bottom:9px}
-      .fp-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-bottom:8px}
-      .fp-tab{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:9px;padding:8px 3px;font-weight:900;font-size:12px}
-      .fp-tab.active{border-color:#72df95;background:#153a2a}
-      .fp-record{border:1px solid #2a4464;border-radius:12px;background:#0b1727;margin:8px 0;padding:8px}
-      .fp-record.current{border-color:#4b719c}
-      .fp-record>summary{cursor:pointer;display:flex;justify-content:space-between;gap:8px;list-style:none}
-      .fp-record>summary::-webkit-details-marker{display:none}
-      .fp-record-head{display:flex;justify-content:space-between;gap:8px;font-size:14px}
-      .fp-record-head span,.fp-record>summary span{color:#8eedaa;font-weight:900}
-      .fp-note,.fp-combo-note{font-size:11px;color:var(--muted);line-height:1.4;margin-top:5px}
-      .fp-section-label{font-size:14px;font-weight:950;color:#dceaff;margin:11px 0 5px}
-      .fp-combo{background:#101f33;border:1px solid #263e5b;border-radius:10px;padding:8px;margin-top:6px}
-      .fp-combo-head{display:flex;justify-content:space-between;gap:8px;font-size:13px}
-      .fp-combo-head span{color:var(--muted);font-size:11px}
-      .fp-numbers{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-      .fp-num{display:inline-block;min-width:38px;text-align:center;padding:5px 6px;border:1px solid #304b6d;border-radius:8px;background:#172a43;font-family:ui-monospace,Consolas,monospace;font-weight:900;font-size:13px}
-      .fp-num.hit{border-color:#43d77b;background:#123a28;color:#c9ffda}
-      .fp-pool{padding-bottom:2px}
-      .fp-neighbors{margin-top:10px;border-top:1px solid #263e5b;padding-top:8px;color:var(--muted);font-size:11px}
-      .fp-neighbors summary{cursor:pointer;color:#cbd8e7;font-weight:850;margin-bottom:5px}
-      .fp-neighbors div{padding:2px 0}
-      .fp-message{background:#101f33;border:1px solid #263e5b;border-radius:9px;padding:10px;color:var(--muted);font-size:12px}
-      .fp-archive-head{font-size:16px;font-weight:950;margin:8px 2px}
-      @media(max-width:390px){
-        #fpMainToolsLayout .tool{font-size:11px;padding-left:2px;padding-right:2px}
-        .fp-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
-        .fp-tab{font-size:11px}
-      }
-    `;
-    document.head.appendChild(style);
+  function styles(){if($('fingerprintStyles'))return;const s=document.createElement('style');s.id='fingerprintStyles';s.textContent=`
+#fpMainToolsLayout{display:grid;gap:6px;margin-top:6px}.fp-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#fpMainToolsLayout .tool{min-width:0;min-height:48px;padding:8px 4px;white-space:normal}#fingerprintMainBtn{font-weight:900}#fingerprintMainBtn.active,.fp-tab.active{border-color:#72df95;background:#153a2a}#fingerprintPanel[hidden]{display:none!important}#fingerprintPanel{margin-top:8px}.fp-title{display:flex;justify-content:space-between;gap:8px}.fp-title b{font-size:20px}.fp-warning{font-size:12px;color:#ffe6a0;background:#302812;border:1px solid #6e5b20;border-radius:9px;padding:8px;margin:9px 0}.fp-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.fp-tab{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:9px;padding:8px 3px;font-weight:900}.fp-record{border:1px solid #2a4464;border-radius:12px;background:#0b1727;margin:8px 0;padding:8px}.fp-record>summary,.fp-head,.fp-combo-head{display:flex;justify-content:space-between;gap:8px}.fp-head span,.fp-record>summary span{color:#8eedaa;font-weight:900}.fp-label{font-weight:950;margin:11px 0 5px}.fp-combo{background:#101f33;border:1px solid #263e5b;border-radius:10px;padding:8px;margin-top:6px}.fp-combo-head span,.fp-note,.fp-nei{font-size:11px;color:var(--muted)}.fp-numbers{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.fp-num{min-width:38px;text-align:center;padding:5px 6px;border:1px solid #304b6d;border-radius:8px;background:#172a43;font-family:ui-monospace,Consolas,monospace;font-weight:900}.fp-num.hit{border-color:#43d77b;background:#123a28;color:#c9ffda}.fp-nei{margin-top:10px;border-top:1px solid #263e5b;padding-top:8px}.fp-msg{background:#101f33;border:1px solid #263e5b;border-radius:9px;padding:10px;color:var(--muted);font-size:12px}.fp-archive-head{font-size:16px;font-weight:950;margin:8px 2px}@media(max-width:390px){#fpMainToolsLayout .tool,.fp-tab{font-size:11px}}
+`;document.head.appendChild(s)}
+  function panel(layout){
+    const p=document.createElement('section');p.id='fingerprintPanel';p.className='card';p.hidden=true;p.innerHTML=`<div class="fp-title"><div><b>🧭 FINGERPRINT</b><div class="small">Манхэттен · 5 ближайших аналогов · окно 80</div></div><span>v${VERSION}</span></div><div class="fp-warning">Экспериментальный статистический алгоритм. Комбинации фиксируются до целевого тиража и не гарантируют выпадение.</div><div class="fp-tabs"><button class="fp-tab active" data-fp-h="1">🎯</button><button class="fp-tab" data-fp-h="2">⏳−1</button><button class="fp-tab" data-fp-h="3">⏳−2</button><button class="fp-tab" id="fingerprintArchiveBtn">📚 Архив</button></div><div id="fingerprintResult"><div class="fp-msg">Загружаю серверный архив сигналов…</div></div>`;layout.insertAdjacentElement('afterend',p);
+    p.querySelectorAll('[data-fp-h]').forEach(b=>b.onclick=()=>{state.h=Number(b.dataset.fpH);state.archive=false;ensure(state.h);render()});$('fingerprintArchiveBtn').onclick=()=>{state.archive=!state.archive;render()};return p;
   }
-
-  function createPanel(layout) {
-    if (byId('fingerprintPanel')) return byId('fingerprintPanel');
-
-    const panel = document.createElement('section');
-    panel.id = 'fingerprintPanel';
-    panel.className = 'card';
-    panel.hidden = true;
-    panel.innerHTML = `
-      <div class="fp-title"><div><b>🧭 FINGERPRINT</b><div class="small">Манхэттен · 5 ближайших аналогов · окно 80</div></div><span>v${VERSION}</span></div>
-      <div class="fp-warning">Экспериментальный статистический алгоритм. Комбинации фиксируются до целевого тиража и не гарантируют выпадение.</div>
-      <div class="fp-tabs">
-        <button type="button" class="fp-tab active" data-fp-horizon="1">🎯</button>
-        <button type="button" class="fp-tab" data-fp-horizon="2">⏳−1</button>
-        <button type="button" class="fp-tab" data-fp-horizon="3">⏳−2</button>
-        <button type="button" class="fp-tab" id="fingerprintArchiveBtn">📚 Архив</button>
-      </div>
-      <div id="fingerprintResult"><div class="fp-message">Загружаю серверный архив сигналов…</div></div>
-    `;
-
-    layout.insertAdjacentElement('afterend', panel);
-
-    panel.querySelectorAll('[data-fp-horizon]').forEach(button => {
-      button.addEventListener('click', () => {
-        state.activeHorizon = Number(button.dataset.fpHorizon) || 1;
-        state.archiveMode = false;
-        ensureCurrentForecast(state.activeHorizon);
-        renderPanel();
-      });
-    });
-
-    byId('fingerprintArchiveBtn').addEventListener('click', () => {
-      state.archiveMode = !state.archiveMode;
-      renderPanel();
-    });
-
-    return panel;
+  function layout(){
+    if($('fpMainToolsLayout'))return true;const search=document.querySelector('button[data-panel="searchPanel"]'),analog=document.querySelector('button[data-panel="analogsPanel"]'),archive=document.querySelector('button[data-panel="archivePanel"]'),data=document.querySelector('button[data-panel="dataPanel"]'),clusters=[...document.querySelectorAll('button[data-cluster-horizon]')].sort((a,b)=>Number(a.dataset.clusterHorizon)-Number(b.dataset.clusterHorizon));if(!search||!analog||!archive||!data||clusters.length!==3)return false;
+    const old=search.parentElement,crow=clusters[0].parentElement;if(!old||!crow)return false;const box=document.createElement('div');box.id='fpMainToolsLayout';const r1=document.createElement('div'),r2=document.createElement('div'),r3=document.createElement('div');r1.className=r2.className=r3.className='fp-row';const btn=document.createElement('button');btn.id='fingerprintMainBtn';btn.className='tool';btn.textContent='🧭 FINGERPRINT';btn.setAttribute('aria-expanded','false');r1.append(search,analog,btn);clusters.forEach(x=>r2.appendChild(x));archive.style.gridColumn='1';data.style.gridColumn='3';r3.append(archive,data);box.append(r1,r2,r3);old.insertAdjacentElement('beforebegin',box);old.remove();crow.remove();const p=panel(box);
+    btn.onclick=()=>{const open=p.hidden;p.hidden=!open;btn.classList.toggle('active',open);btn.setAttribute('aria-expanded',String(open));if(open){$('archivePanel')?.classList.remove('show');state.archive=false;ensure(state.h);render();sync(true);p.scrollIntoView({behavior:'smooth',block:'start'})}};
+    archive.addEventListener('click',()=>{if(!p.hidden){p.hidden=true;btn.classList.remove('active');btn.setAttribute('aria-expanded','false')}});return true;
   }
-
-  function buildMainLayout() {
-    if (byId('fpMainToolsLayout')) return true;
-
-    const searchButton = document.querySelector('button[data-panel="searchPanel"]');
-    const analogsButton = document.querySelector('button[data-panel="analogsPanel"]');
-    const archiveButton = document.querySelector('button[data-panel="archivePanel"]');
-    const dataButton = document.querySelector('button[data-panel="dataPanel"]');
-    const clusterButtons = [...document.querySelectorAll('button[data-cluster-horizon]')]
-      .sort((a, b) => Number(a.dataset.clusterHorizon) - Number(b.dataset.clusterHorizon));
-
-    if (!searchButton || !analogsButton || !archiveButton || !dataButton || clusterButtons.length !== 3) return false;
-
-    const originalTools = searchButton.parentElement;
-    const clusterRow = clusterButtons[0].parentElement;
-    if (!originalTools || !clusterRow) return false;
-
-    const layout = document.createElement('div');
-    layout.id = 'fpMainToolsLayout';
-
-    const row1 = document.createElement('div');
-    row1.className = 'fp-main-row row-3';
-
-    const fingerprintButton = document.createElement('button');
-    fingerprintButton.type = 'button';
-    fingerprintButton.id = 'fingerprintMainBtn';
-    fingerprintButton.className = 'tool';
-    fingerprintButton.textContent = '🧭 FINGERPRINT';
-    fingerprintButton.setAttribute('aria-expanded', 'false');
-    fingerprintButton.setAttribute('aria-controls', 'fingerprintPanel');
-
-    row1.append(searchButton, analogsButton, fingerprintButton);
-
-    const row2 = document.createElement('div');
-    row2.className = 'fp-main-row row-3';
-    clusterButtons.forEach(button => row2.appendChild(button));
-
-    const row3 = document.createElement('div');
-    row3.className = 'fp-main-row row-2-fixed';
-    archiveButton.style.gridColumn = '1';
-    dataButton.style.gridColumn = '3';
-    row3.append(archiveButton, dataButton);
-
-    layout.append(row1, row2, row3);
-    originalTools.insertAdjacentElement('beforebegin', layout);
-
-    originalTools.remove();
-    clusterRow.remove();
-
-    const panel = createPanel(layout);
-
-    fingerprintButton.addEventListener('click', () => {
-      const opening = panel.hidden;
-      panel.hidden = !opening;
-      fingerprintButton.classList.toggle('active', opening);
-      fingerprintButton.setAttribute('aria-expanded', String(opening));
-
-      if (opening) {
-        // FINGERPRINT имеет собственный архив комбинаций.
-        // Общий архив КЕНО по датам при открытии этого модуля не показываем.
-        const mainArchivePanel = byId('archivePanel');
-        if (mainArchivePanel) mainArchivePanel.classList.remove('show');
-
-        state.archiveMode = false;
-        ensureCurrentForecast(state.activeHorizon);
-        renderPanel();
-        syncAll(true);
-        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
-
-    // Если пользователь открывает обычный Архив КЕНО,
-    // FINGERPRINT сворачивается и не висит над архивом по датам.
-    archiveButton.addEventListener('click', () => {
-      if (panel.hidden) return;
-      panel.hidden = true;
-      fingerprintButton.classList.remove('active');
-      fingerprintButton.setAttribute('aria-expanded', 'false');
-    });
-
-    return true;
-  }
-
-  function start() {
-    injectStyles();
-
-    let attempts = 0;
-    const waitForExistingUi = setInterval(() => {
-      attempts += 1;
-      if (buildMainLayout() || attempts >= 40) {
-        clearInterval(waitForExistingUi);
-        if (byId('fpMainToolsLayout')) {
-          syncAll(true);
-          setInterval(() => syncAll(false), 60000);
-        }
-      }
-    }, 50);
-  }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
-  else start();
+  function start(){styles();let tries=0;const t=setInterval(()=>{tries++;if(layout()||tries>=40){clearInterval(t);if($('fpMainToolsLayout')){sync(true);setInterval(()=>sync(false),60000)}}},50)}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
