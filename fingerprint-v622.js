@@ -1,8 +1,20 @@
 'use strict';
 /* ПОЗИТРОН КЕНО v6.2.2 — отдельный модуль 🧭 FINGERPRINT */
 (() => {
-  const VERSION='1.0.2';
+  const VERSION='1.0.3';
   const CFG=Object.freeze({neighbors:5,window:80,pool:20,sizes:[3,4,5],perSize:2,eps:.02});
+  const KENO_PAYOUTS=Object.freeze({
+    10:Object.freeze({10:10000000,9:1000000,8:50000,7:5000,6:750,5:250,4:100,0:200}),
+    9:Object.freeze({9:4000000,8:210000,7:10000,6:1000,5:300,4:150,0:150}),
+    8:Object.freeze({8:1500000,7:53300,6:2500,5:500,4:200,0:150}),
+    7:Object.freeze({7:250000,6:10000,5:1200,4:200,3:100,0:150}),
+    6:Object.freeze({6:75000,5:4180,4:750,3:200}),
+    5:Object.freeze({5:20000,4:1920,3:400}),
+    4:Object.freeze({4:3300,3:300,2:100}),
+    3:Object.freeze({3:1500,2:300}),
+    2:Object.freeze({2:300,1:100}),
+    1:Object.freeze({1:280})
+  });
   const META={1:{button:'🎯'},2:{button:'⏳−1'},3:{button:'⏳−2'}};
   const FILES={1:'./cluster-archive-next-v622.json',2:'./cluster-archive-minus1-v622.json',3:'./cluster-archive-minus2-v622.json'};
   const KEYS={1:'pozitron_v622_fingerprint_archive_h1_v1',2:'pozitron_v622_fingerprint_archive_h2_v1',3:'pozitron_v622_fingerprint_archive_h3_v1'};
@@ -14,6 +26,8 @@
   const $=id=>document.getElementById(id);
   const num=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
   const pad=n=>String(Number(n)).padStart(2,'0');
+  const rubles=amount=>`${Number(amount||0).toLocaleString('ru-RU')} ₽`;
+  const payoutFor=(selected,guessed)=>Number(KENO_PAYOUTS[Number(selected)]?.[Number(guessed)]||0);
   const phoneDraws=()=>{try{return typeof draws!=='undefined'&&Array.isArray(draws)?draws:[]}catch(_){return[]}};
   const read=h=>(state.archiveData[h]||[]).slice();
   function legacyRead(h){try{const x=JSON.parse(localStorage.getItem(KEYS[h])||'[]');return Array.isArray(x)?x:[]}catch(_){return[]}}
@@ -161,10 +175,14 @@
 
   const hitSet=(nums,actual)=>{const s=new Set(actual?.balls||[]);return new Set((nums||[]).filter(n=>s.has(Number(n))))};
   const chips=(nums,hits)=>nums.map(n=>`<span class="fp-num ${hits?.has(Number(n))?'hit':''}">${pad(n)}${hits?.has(Number(n))?' ✓':''}</span>`).join('');
-  function comboHtml(c,actual){const hs=actual?hitSet(c.numbers,actual):null,hc=hs?hs.size:0,sup=`${c.neighborCount}/${CFG.neighbors}`;return `<div class="fp-combo"><div class="fp-combo-head"><b>${c.id}</b><span>${actual?`${hc}/${c.size}`:`в аналогах ${sup}`}</span></div><div class="fp-numbers">${chips(c.numbers,hs)}</div>${actual?`<div class="fp-note">поддержка до тиража: ${sup} ближайших аналогов</div>`:''}</div>`}
+  function comboHtml(c,actual){
+    const hs=actual?hitSet(c.numbers,actual):null,hc=hs?hs.size:0,sup=`${c.neighborCount}/${CFG.neighbors}`,payout=actual?payoutFor(c.size,hc):0;
+    return `<div class="fp-combo ${payout>0?'fp-combo-win':''}"><div class="fp-combo-head"><b>${c.id}</b><span>${actual?`${hc}/${c.size}`:`в аналогах ${sup}`}</span></div><div class="fp-numbers">${chips(c.numbers,hs)}</div>${actual?`<div class="fp-note">поддержка до тиража: ${sup} ближайших аналогов</div>`:''}${payout>0?`<div class="fp-prize">🔥 ${rubles(payout)}</div>`:''}</div>`;
+  }
   function forecastHtml(r,open=true){
     const actual=actualFP(r),ph=actual?hitSet(r.pool20,actual):null,pc=ph?ph.size:0,groups=CFG.sizes.map(k=>`<div class="fp-label">К${k}</div>${r.combos.filter(c=>c.size===k).map(c=>comboHtml(c,actual)).join('')}`).join('');
-    const body=`<div class="fp-head"><b>${META[r.horizon]?.button||'🎯'} тираж №${r.targetDraw}</b><span>${actual?`пул ${pc}/20`:'ожидает результата'}</span></div><div class="fp-note">Зафиксировано после №${r.sourceDraw}. Прогноз не меняется.</div>${groups}<div class="fp-label">ПУЛ 20</div><div class="fp-numbers">${chips(r.pool20,ph)}</div><details class="fp-nei"><summary>5 ближайших исторических аналогов</summary>${r.neighbors.map((x,i)=>`<div>${i+1}. №${x.targetDraw} · дистанция ${x.distance.toFixed(4)}</div>`).join('')}</details>`;
+    const actualBlock=actual?`<div class="fp-label">Фактические 20 чисел</div><div class="fp-numbers fp-actual">${chips(actual.balls,new Set((r.pool20||[]).map(Number)))}</div>`:'';
+    const body=`<div class="fp-head"><b>${META[r.horizon]?.button||'🎯'} тираж №${r.targetDraw}</b><span>${actual?`пул ${pc}/20`:'ожидает результата'}</span></div><div class="fp-note">Зафиксировано после №${r.sourceDraw}. Прогноз не меняется.</div>${groups}<div class="fp-label">ПУЛ 20</div><div class="fp-numbers">${chips(r.pool20,ph)}</div>${actualBlock}<details class="fp-nei"><summary>5 ближайших исторических аналогов</summary>${r.neighbors.map((x,i)=>`<div>${i+1}. №${x.targetDraw} · дистанция ${x.distance.toFixed(4)}</div>`).join('')}</details>`;
     return open?`<div class="fp-record">${body}</div>`:`<details class="fp-record"><summary><b>${META[r.horizon]?.button} №${r.targetDraw}</b><span>${actual?`пул ${pc}/20`:'⏳'}</span></summary>${body}</details>`;
   }
   function currentRecord(h){const cur=pending(state.payload[h]);if(!cur)return null;return read(h).find(x=>String(x.id)===`fp:${h}:${cur.targetDraw}`)||null}
@@ -188,7 +206,7 @@
   }
 
   function styles(){if($('fingerprintStyles'))return;const s=document.createElement('style');s.id='fingerprintStyles';s.textContent=`
-#fpMainToolsLayout{display:grid;gap:6px;margin-top:6px}.fp-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#fpMainToolsLayout .tool{min-width:0;min-height:48px;padding:8px 4px;white-space:normal}#fingerprintMainBtn{font-weight:900}#fingerprintMainBtn.active,.fp-tab.active{border-color:#72df95;background:#153a2a}#fingerprintPanel[hidden]{display:none!important}#fingerprintPanel{margin-top:8px}.fp-title{display:flex;justify-content:space-between;gap:8px}.fp-title b{font-size:20px}.fp-warning{font-size:12px;color:#ffe6a0;background:#302812;border:1px solid #6e5b20;border-radius:9px;padding:8px;margin:9px 0}.fp-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.fp-tab{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:9px;padding:8px 3px;font-weight:900}.fp-record{border:1px solid #2a4464;border-radius:12px;background:#0b1727;margin:8px 0;padding:8px}.fp-record>summary,.fp-head,.fp-combo-head{display:flex;justify-content:space-between;gap:8px}.fp-head span,.fp-record>summary span{color:#8eedaa;font-weight:900}.fp-label{font-weight:950;margin:11px 0 5px}.fp-combo{background:#101f33;border:1px solid #263e5b;border-radius:10px;padding:8px;margin-top:6px}.fp-combo-head span,.fp-note,.fp-nei{font-size:11px;color:var(--muted)}.fp-numbers{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.fp-num{min-width:38px;text-align:center;padding:5px 6px;border:1px solid #304b6d;border-radius:8px;background:#172a43;font-family:ui-monospace,Consolas,monospace;font-weight:900}.fp-num.hit{border-color:#43d77b;background:#123a28;color:#c9ffda}.fp-nei{margin-top:10px;border-top:1px solid #263e5b;padding-top:8px}.fp-msg{background:#101f33;border:1px solid #263e5b;border-radius:9px;padding:10px;color:var(--muted);font-size:12px}.fp-archive-head{font-size:16px;font-weight:950;margin:8px 2px}@media(max-width:390px){#fpMainToolsLayout .tool,.fp-tab{font-size:11px}}
+#fpMainToolsLayout{display:grid;gap:6px;margin-top:6px}.fp-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}#fpMainToolsLayout .tool{min-width:0;min-height:48px;padding:8px 4px;white-space:normal}#fingerprintMainBtn{font-weight:900}#fingerprintMainBtn.active,.fp-tab.active{border-color:#72df95;background:#153a2a}#fingerprintPanel[hidden]{display:none!important}#fingerprintPanel{margin-top:8px}.fp-title{display:flex;justify-content:space-between;gap:8px}.fp-title b{font-size:20px}.fp-warning{font-size:12px;color:#ffe6a0;background:#302812;border:1px solid #6e5b20;border-radius:9px;padding:8px;margin:9px 0}.fp-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.fp-tab{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:9px;padding:8px 3px;font-weight:900}.fp-record{border:1px solid #2a4464;border-radius:12px;background:#0b1727;margin:8px 0;padding:8px}.fp-record>summary,.fp-head,.fp-combo-head{display:flex;justify-content:space-between;gap:8px}.fp-head span,.fp-record>summary span{color:#8eedaa;font-weight:900}.fp-label{font-weight:950;margin:11px 0 5px}.fp-combo{background:#101f33;border:1px solid #263e5b;border-radius:10px;padding:8px;margin-top:6px}.fp-combo.fp-combo-win{border-color:#f0a63b;box-shadow:inset 0 0 0 1px #f0a63b}.fp-prize{margin-top:7px;color:#ffad42;font-size:17px;font-weight:950}.fp-combo-head span,.fp-note,.fp-nei{font-size:11px;color:var(--muted)}.fp-numbers{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.fp-num{min-width:38px;text-align:center;padding:5px 6px;border:1px solid #304b6d;border-radius:8px;background:#172a43;font-family:ui-monospace,Consolas,monospace;font-weight:900}.fp-num.hit{border-color:#43d77b;background:#123a28;color:#c9ffda}.fp-nei{margin-top:10px;border-top:1px solid #263e5b;padding-top:8px}.fp-msg{background:#101f33;border:1px solid #263e5b;border-radius:9px;padding:10px;color:var(--muted);font-size:12px}.fp-archive-head{font-size:16px;font-weight:950;margin:8px 2px}@media(max-width:390px){#fpMainToolsLayout .tool,.fp-tab{font-size:11px}}
 `;document.head.appendChild(s)}
   function panel(layout){
     const p=document.createElement('section');p.id='fingerprintPanel';p.className='card';p.hidden=true;p.innerHTML=`<div class="fp-title"><div><b>🧭 FINGERPRINT</b><div class="small">Манхэттен · 5 ближайших аналогов · окно 80</div></div><span>v${VERSION}</span></div><div class="fp-warning">Экспериментальный статистический алгоритм. Комбинации фиксируются до целевого тиража и не гарантируют выпадение.</div><div class="fp-tabs"><button class="fp-tab active" data-fp-h="1">🎯</button><button class="fp-tab" data-fp-h="2">⏳−1</button><button class="fp-tab" data-fp-h="3">⏳−2</button><button class="fp-tab" id="fingerprintArchiveBtn">📚 Архив</button></div><div id="fingerprintResult"><div class="fp-msg">Загружаю серверный архив сигналов…</div></div>`;layout.insertAdjacentElement('afterend',p);
