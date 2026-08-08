@@ -664,12 +664,26 @@
       fingerprintButton.setAttribute('aria-expanded', String(opening));
 
       if (opening) {
+        // FINGERPRINT имеет собственный архив комбинаций.
+        // Общий архив КЕНО по датам при открытии этого модуля не показываем.
+        const mainArchivePanel = byId('archivePanel');
+        if (mainArchivePanel) mainArchivePanel.classList.remove('show');
+
         state.archiveMode = false;
         ensureCurrentForecast(state.activeHorizon);
         renderPanel();
         syncAll(true);
         panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+    });
+
+    // Если пользователь открывает обычный Архив КЕНО,
+    // FINGERPRINT сворачивается и не висит над архивом по датам.
+    archiveButton.addEventListener('click', () => {
+      if (panel.hidden) return;
+      panel.hidden = true;
+      fingerprintButton.classList.remove('active');
+      fingerprintButton.setAttribute('aria-expanded', 'false');
     });
 
     return true;
