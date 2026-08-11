@@ -1,0 +1,57 @@
+name: KENO v6.2.2 · Stoloto MAIN
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-v622-stoloto
+  cancel-in-progress: false
+
+jobs:
+  stoloto-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Получить файлы репозитория
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Установить Playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install --with-deps chromium
+
+      - name: Столото · OAuth · 3 независимых чтения
+        env:
+          STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
+          STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
+        run: node stoloto-keno-update-v62.mjs
+
+      - name: Сохранить обновление Столото
+        shell: bash
+        run: |
+          if git diff --quiet -- keno-history-v62.json keno-status-v62.json; then
+            echo "Новых подтверждённых данных нет"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add keno-history-v62.json keno-status-v62.json
+          git commit -m "KENO v6.2.2 · Stoloto auto update"
+          git pull --rebase origin main
+          git push
+
