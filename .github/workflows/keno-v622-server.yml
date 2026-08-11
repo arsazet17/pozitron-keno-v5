@@ -1,0 +1,381 @@
+name: KENO v6.2.2 server predictions
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'keno-history-v62.json'
+      - 'cluster-model-v622.js'
+      - '.github/workflows/keno-v622-server.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-v622-server-predictions
+  cancel-in-progress: false
+
+jobs:
+  build-server-archives:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get latest main
+        run: git pull --rebase origin main
+
+      - name: Create embedded KENO server engine
+        shell: bash
+        run: |
+          cat > /tmp/keno-v622-server.mjs <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+
+          const ROOT = process.cwd();
+          const HISTORY_FILE = path.join(ROOT, 'keno-history-v62.json');
+          const MODEL_FILE = path.join(ROOT, 'cluster-model-v622.js');
+
+          const ARCHIVES = {
+            1: path.join(ROOT, 'cluster-archive-next-v622.json'),
+            2: path.join(ROOT, 'cluster-archive-minus1-v622.json'),
+            3: path.join(ROOT, 'cluster-archive-minus2-v622.json')
+          };
+
+          const HORIZON_META = {
+            1: { button: '🎯', title: 'Следующий тираж' },
+            2: { button: '⏳−1', title: 'Через один тираж' },
+            3: { button: '⏳−2', title: 'Через два тиража' }
+          };
+
+          const KENO_PAYOUTS = Object.freeze({
+            10: Object.freeze({ 10: 10000000, 9: 1000000, 8: 50000, 7: 5000, 6: 750, 5: 250, 4: 100, 0: 200 }),
+            9: Object.freeze({ 9: 4000000, 8: 210000, 7: 10000, 6: 1000, 5: 300, 4: 150, 0: 150 }),
+            8: Object.freeze({ 8: 1500000, 7: 53300, 6: 2500, 5: 500, 4: 200, 0: 150 }),
+            7: Object.freeze({ 7: 250000, 6: 10000, 5: 1200, 4: 200, 3: 100, 0: 150 }),
+            6: Object.freeze({ 6: 75000, 5: 4180, 4: 750, 3: 200 }),
+            5: Object.freeze({ 5: 20000, 4: 1920, 3: 400 }),
+            4: Object.freeze({ 4: 3300, 3: 300, 2: 100 }),
+            3: Object.freeze({ 3: 1500, 2: 300 }),
+            2: Object.freeze({ 2: 300, 1: 100 }),
+            1: Object.freeze({ 1: 280 })
+          });
+
+          function readJson(file, fallback) {
+            try {
+              return JSON.parse(fs.readFileSync(file, 'utf8'));
+            } catch (_) {
+              return fallback;
+            }
+          }
+
+          function writeJson(file, value) {
+            fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8');
+          }
+
+          function loadModel() {
+            const text = fs.readFileSync(MODEL_FILE, 'utf8');
+            const marker = 'window.POZITRON_CLUSTER_MODEL=';
+            const at = text.indexOf(marker);
+            if (at < 0) throw new Error('Не найден объект window.POZITRON_CLUSTER_MODEL');
+            let raw = text.slice(at + marker.length).trim();
+            if (raw.endsWith(';')) raw = raw.slice(0, -1);
+            return JSON.parse(raw);
+          }
+
+          function normalizeDraw(raw) {
+            const draw = Number(raw?.draw);
+            const balls = Array.isArray(raw?.balls) ? raw.balls.map(Number).slice(0, 20) : [];
+            if (!Number.isFinite(draw) || balls.length !== 20 || balls.some(n => n < 1 || n > 80)) return null;
+            return {
+              draw,
+              date: String(raw?.date || ''),
+              time: String(raw?.time || ''),
+              balls
+            };
+          }
+
+          function loadHistory() {
+            const raw = readJson(HISTORY_FILE, []);
+            const map = new Map();
+            for (const item of Array.isArray(raw) ? raw : []) {
+              const draw = normalizeDraw(item);
+              if (draw) map.set(draw.draw, draw);
+            }
+            return [...map.values()].sort((a, b) => a.draw - b.draw);
+          }
+
+          function payoutFor(selected, guessed) {
+            return Number(KENO_PAYOUTS[Number(selected)]?.[Number(guessed)] || 0);
+          }
+
+          function areConsecutive(list, start, end) {
+            for (let i = start + 1; i <= end; i += 1) {
+              if (Number(list[i]?.draw) !== Number(list[i - 1]?.draw) + 1) return false;
+            }
+            return true;
+          }
+
+          function sourceForStrategy(list, sourceIndex, strategy, horizon) {
+            if (Number(strategy.d) < horizon) return null;
+            const sourceEnd = sourceIndex + horizon - Number(strategy.d);
+            if (sourceEnd < 0 || sourceEnd > sourceIndex || sourceEnd >= list.length) return null;
+
+            if (strategy.t === 'V') {
+              const sourceStart = sourceEnd - Number(strategy.n) + 1;
+              if (sourceStart < 0 || !areConsecutive(list, sourceStart, sourceEnd)) return null;
+              const numbers = [];
+              const sourceDraws = [];
+              for (let i = sourceStart; i <= sourceEnd; i += 1) {
+                const value = Number(list[i]?.balls?.[Number(strategy.m) - 1]);
+                if (!(value >= 1 && value <= 80)) return null;
+                numbers.push(value);
+                sourceDraws.push(Number(list[i].draw));
+              }
+              if (new Set(numbers).size !== numbers.length) return null;
+              return { numbers, sourceDraws };
+            }
+
+            const draw = list[sourceEnd];
+            const start = Number(strategy.m) - 1;
+            const numbers = (draw?.balls || []).slice(start, start + Number(strategy.n)).map(Number);
+            if (numbers.length !== Number(strategy.n) || new Set(numbers).size !== numbers.length) return null;
+            return { numbers, sourceDraws: [Number(draw.draw)] };
+          }
+
+          function overlapTooHigh(numbers, selected) {
+            const current = new Set(numbers);
+            return selected.some(item => {
+              const other = new Set(item.numbers);
+              let shared = 0;
+              for (const n of current) if (other.has(n)) shared += 1;
+              return shared / Math.min(current.size, other.size) > 0.60;
+            });
+          }
+
+          function buildCandidates(list, sourceIndex, strategies, horizon) {
+            const prepared = [];
+            for (const strategy of strategies) {
+              const source = sourceForStrategy(list, sourceIndex, strategy, horizon);
+              if (!source) continue;
+              prepared.push({
+                kind: strategy.t,
+                length: Number(strategy.n),
+                place: Number(strategy.m),
+                delay: Number(strategy.d),
+                numbers: source.numbers,
+                sourceDraws: source.sourceDraws,
+                archiveChecks: Number(strategy.a),
+                archiveFullHits: Number(strategy.h),
+                lift: Number(strategy.l),
+                validationLift: Number(strategy.v),
+                score: Number(strategy.s)
+              });
+            }
+
+            const result = [];
+            for (const kind of ['V', 'H']) {
+              const pool = prepared
+                .filter(x => x.kind === kind)
+                .sort((a, b) => b.score - a.score || b.archiveFullHits - a.archiveFullHits);
+              const chosen = [];
+              for (const item of pool) {
+                if (overlapTooHigh(item.numbers, chosen)) continue;
+                chosen.push(item);
+                if (chosen.length === 3) break;
+              }
+              if (chosen.length < 3) {
+                for (const item of pool) {
+                  if (chosen.includes(item)) continue;
+                  chosen.push(item);
+                  if (chosen.length === 3) break;
+                }
+              }
+              result.push(...chosen);
+            }
+            return result;
+          }
+
+          function evaluateRecord(record, actual) {
+            const actualSet = new Set(actual.balls.map(Number));
+            let full = 0;
+            let partial = 0;
+            let none = 0;
+            let totalPayout = 0;
+
+            const candidates = record.candidates.map(candidate => {
+              const hitNumbers = candidate.numbers.filter(n => actualSet.has(Number(n)));
+              const hitCount = hitNumbers.length;
+              const result = hitCount === candidate.length ? 'full' : hitCount > 0 ? 'partial' : 'none';
+              if (result === 'full') full += 1;
+              else if (result === 'partial') partial += 1;
+              else none += 1;
+              const payout = payoutFor(candidate.length, hitCount);
+              totalPayout += payout;
+              return {
+                ...candidate,
+                outcome: { hitNumbers, hitCount, result, payout }
+              };
+            });
+
+            return {
+              ...record,
+              status: 'checked',
+              candidates,
+              actual: {
+                targetDraw: actual.draw,
+                date: actual.date,
+                time: actual.time,
+                balls: actual.balls.slice()
+              },
+              summary: { full, partial, none, totalPayout }
+            };
+          }
+
+          function normalizeArchive(raw, horizon, model) {
+            const records = Array.isArray(raw?.records) ? raw.records : [];
+            return {
+              version: '2.0-server',
+              appVersion: '6.2.2',
+              horizon,
+              button: HORIZON_META[horizon].button,
+              title: HORIZON_META[horizon].title,
+              modelVersion: String(model.version || '1.0'),
+              modelDraws: Number(model.trainedDraws || 0),
+              updatedAt: raw?.updatedAt || null,
+              records
+            };
+          }
+
+          function recordId(horizon, targetDraw) {
+            return `${horizon}:${targetDraw}`;
+          }
+
+          function buildRecord(list, sourceIndex, model, horizon) {
+            const source = list[sourceIndex];
+            const targetDraw = Number(source.draw) + horizon;
+            const candidates = buildCandidates(list, sourceIndex, model.strategies || [], horizon);
+            if (!candidates.length) return null;
+            return {
+              id: recordId(horizon, targetDraw),
+              horizon,
+              sourceDraw: Number(source.draw),
+              sourceDate: source.date,
+              sourceTime: source.time,
+              targetDraw,
+              createdAtDrawTime: `${source.date} ${source.time}`.trim(),
+              displayStyle: 'classic',
+              modelVersion: String(model.version || '1.0'),
+              modelDraws: Number(model.trainedDraws || 0),
+              status: 'pending',
+              candidates,
+              actual: null,
+              summary: null
+            };
+          }
+
+          function updateHorizon(list, model, horizon) {
+            const file = ARCHIVES[horizon];
+            const originalRaw = readJson(file, {});
+            const archive = normalizeArchive(originalRaw, horizon, model);
+            const byId = new Map(archive.records.map(r => [String(r.id), r]));
+            const actualByDraw = new Map(list.map(d => [Number(d.draw), d]));
+
+            for (let sourceIndex = 14; sourceIndex < list.length; sourceIndex += 1) {
+              const source = list[sourceIndex];
+              const targetDraw = Number(source.draw) + horizon;
+              const id = recordId(horizon, targetDraw);
+              if (!byId.has(id)) {
+                const record = buildRecord(list, sourceIndex, model, horizon);
+                if (record) byId.set(id, record);
+              }
+            }
+
+            for (const [id, record] of byId) {
+              if (record?.status === 'checked' && record?.actual?.balls?.length === 20) continue;
+              const actual = actualByDraw.get(Number(record.targetDraw));
+              if (actual) byId.set(id, evaluateRecord(record, actual));
+            }
+
+            archive.records = [...byId.values()].sort((a, b) => Number(a.targetDraw) - Number(b.targetDraw));
+            archive.latestHistoryDraw = Number(list.at(-1)?.draw || 0);
+            archive.recordsCount = archive.records.length;
+            archive.checkedCount = archive.records.filter(r => r.status === 'checked').length;
+            archive.pendingCount = archive.records.filter(r => r.status !== 'checked').length;
+
+            const changed =
+              JSON.stringify(originalRaw?.records || []) !== JSON.stringify(archive.records) ||
+              Number(originalRaw?.latestHistoryDraw || 0) !== archive.latestHistoryDraw ||
+              String(originalRaw?.version || '') !== archive.version ||
+              String(originalRaw?.modelVersion || '') !== archive.modelVersion ||
+              Number(originalRaw?.modelDraws || 0) !== archive.modelDraws ||
+              Number(originalRaw?.horizon || 0) !== archive.horizon;
+
+            archive.updatedAt = changed ? new Date().toISOString() : (originalRaw?.updatedAt || null);
+            if (changed || !fs.existsSync(file)) writeJson(file, archive);
+          }
+
+          function main() {
+            if (!fs.existsSync(HISTORY_FILE)) throw new Error(`Нет файла ${path.basename(HISTORY_FILE)}`);
+            if (!fs.existsSync(MODEL_FILE)) throw new Error(`Нет файла ${path.basename(MODEL_FILE)}`);
+
+            const list = loadHistory();
+            if (list.length < 15) throw new Error(`Недостаточно серверной истории: ${list.length} тиражей`);
+            const model = loadModel();
+
+            for (const horizon of [1, 2, 3]) updateHorizon(list, model, horizon);
+
+            console.log(`KENO v6.2.2: обработано ${list.length} серверных тиражей, последний №${list.at(-1).draw}`);
+            for (const horizon of [1, 2, 3]) {
+              const archive = readJson(ARCHIVES[horizon], {});
+              console.log(`${HORIZON_META[horizon].button}: ${archive.recordsCount || 0} записей, проверено ${archive.checkedCount || 0}, ожидает ${archive.pendingCount || 0}`);
+            }
+          }
+
+          main();
+          NODE
+
+      - name: Rebuild all missing predictions and check finished draws
+        run: node /tmp/keno-v622-server.mjs
+
+      - name: Commit server archives
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- \
+            cluster-archive-next-v622.json \
+            cluster-archive-minus1-v622.json \
+            cluster-archive-minus2-v622.json
+
+          if git diff --cached --quiet; then
+            echo "No archive changes"
+            exit 0
+          fi
+
+          git commit -m "Auto-update KENO v6.2.2 server predictions"
+
+          if git push origin HEAD:main; then
+            exit 0
+          fi
+
+          echo "Main changed in parallel; rebasing and rebuilding archives..."
+          git fetch origin main
+          git rebase origin/main
+          node /tmp/keno-v622-server.mjs
+          git add -- \
+            cluster-archive-next-v622.json \
+            cluster-archive-minus1-v622.json \
+            cluster-archive-minus2-v622.json
+          git commit --amend --no-edit
+          git push origin HEAD:main
