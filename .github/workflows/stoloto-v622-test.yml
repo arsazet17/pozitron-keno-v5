@@ -1,0 +1,73 @@
+name: KENO v6.2.2 · Stoloto TEST
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-v622-stoloto
+  cancel-in-progress: false
+
+jobs:
+  stoloto-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Получить файлы репозитория
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Установить Playwright
+        run: |
+          npm init -y
+          npm install playwright
+          npx playwright install --with-deps chromium
+
+      - name: Столото · OAuth · 3 независимых чтения
+        env:
+          STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
+          STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
+        run: node stoloto-keno-update-v62.mjs
+
+      - name: Показать результат проверки
+        shell: bash
+        run: |
+          echo "=== KENO 6.2.2 STOLOTO TEST ==="
+          node - <<'NODE'
+          const fs = require('fs');
+          const history = JSON.parse(fs.readFileSync('keno-history-v62.json', 'utf8'));
+          const status = JSON.parse(fs.readFileSync('keno-status-v62.json', 'utf8'));
+          const last = history.at(-1);
+          console.log('Тиражей:', history.length);
+          console.log('Последний:', last?.draw);
+          console.log('Дата:', last?.date);
+          console.log('Время:', last?.time);
+          console.log('Столбец:', last?.column ?? 'нет в старой записи');
+          console.log('Чёт/нечёт:', last?.parity ?? 'нет в старой записи');
+          console.log('20 чисел:', (last?.balls || []).join(' '));
+          console.log('Источник:', status.source);
+          console.log('Проверка:', status.verification);
+          NODE
+
+      - name: TEST · сохранить подтверждённые данные
+        shell: bash
+        run: |
+          if git diff --quiet -- keno-history-v62.json keno-status-v62.json; then
+            echo "Изменений нет"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add keno-history-v62.json keno-status-v62.json
+          git commit -m "KENO v6.2.2 · Stoloto TEST PASS"
+          git push
