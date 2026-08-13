@@ -2,8 +2,6 @@ name: KENO v6.2.2 · Stoloto MAIN
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
 
 permissions:
   contents: write
@@ -53,5 +51,4 @@ jobs:
           git add keno-history-v62.json keno-status-v62.json
           git commit -m "KENO v6.2.2 · Stoloto auto update"
           git pull --rebase origin main
-          git push
-
+          git push origin HEAD:main

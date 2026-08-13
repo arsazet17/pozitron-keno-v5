@@ -2,8 +2,6 @@ name: FINGERPRINT v6.2.2 server archive
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '6,21,36,51 * * * *'
   workflow_run:
     workflows: ["KENO v6.2.2 server predictions"]
     types: [completed]
