@@ -21,6 +21,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Синхронизировать актуальный main
+        shell: bash
+        run: |
+          set -e
+          git fetch origin main
+          git reset --hard origin/main
+          echo "Работаем от актуального main: $(git rev-parse HEAD)"
+
       - name: Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -40,15 +48,56 @@ jobs:
 
       - name: Сохранить обновление Столото
         shell: bash
+        env:
+          STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
+          STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
         run: |
-          if git diff --quiet -- keno-history-v62.json keno-status-v62.json; then
-            echo "Новых подтверждённых данных нет"
-            exit 0
-          fi
+          set -euo pipefail
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add keno-history-v62.json keno-status-v62.json
-          git commit -m "KENO v6.2.2 · Stoloto auto update"
-          git pull --rebase origin main
-          git push origin HEAD:main
+
+          save_and_push() {
+            if git diff --quiet -- keno-history-v62.json keno-status-v62.json; then
+              echo "Новых подтверждённых данных нет"
+              return 0
+            fi
+
+            git add -- keno-history-v62.json keno-status-v62.json
+            git commit -m "KENO v6.2.2 · Stoloto auto update"
+
+            if git push origin HEAD:main; then
+              echo "Обновление успешно сохранено"
+              return 0
+            fi
+
+            return 1
+          }
+
+          # Первая попытка — сохраняем результат уже выполненной тройной проверки.
+          if save_and_push; then
+            exit 0
+          fi
+
+          echo "main изменился параллельно. Повторяем работу от свежего main."
+
+          # Если между чтением Столото и push появился новый коммит,
+          # не делаем конфликтный rebase изменённых JSON.
+          # Берём свежий main, повторяем тройную проверку и сохраняем заново.
+          for attempt in 2 3; do
+            echo "Повторная попытка ${attempt}/3"
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            node stoloto-keno-update-v62.mjs
+
+            if save_and_push; then
+              exit 0
+            fi
+
+            echo "main снова изменился во время попытки ${attempt}"
+          done
+
+          echo "Не удалось сохранить после 3 попыток из-за параллельных обновлений" >&2
+          exit 1
