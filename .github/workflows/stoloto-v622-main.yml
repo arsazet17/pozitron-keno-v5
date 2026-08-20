@@ -20,6 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
 
       - name: Синхронизировать актуальный main
         shell: bash
@@ -40,13 +41,44 @@ jobs:
           npm install playwright
           npx playwright install --with-deps chromium
 
+      - name: Подготовить движок нижних прогнозов
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          workflow = Path('.github/workflows/keno-v622-server.yml')
+          if not workflow.exists():
+              raise SystemExit('Нет .github/workflows/keno-v622-server.yml')
+
+          text = workflow.read_text(encoding='utf-8')
+          match = re.search(
+              r"(?ms)^[ \t]*cat > /tmp/keno-v622-server\.mjs <<'NODE'[ \t]*\n(.*?)^[ \t]*NODE[ \t]*$",
+              text,
+          )
+          if not match:
+              raise SystemExit('Не найден встроенный движок keno-v622-server.mjs')
+
+          code = textwrap.dedent(match.group(1)).strip('\n') + '\n'
+          target = Path('/tmp/keno-v622-server.mjs')
+          target.write_text(code, encoding='utf-8')
+          print(f'Движок нижних прогнозов подготовлен: {len(code)} байт')
+          PY
+          node --check /tmp/keno-v622-server.mjs
+
       - name: Столото · OAuth · 3 независимых чтения
         env:
           STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
           STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
         run: node stoloto-keno-update-v62.mjs
 
-      - name: Сохранить обновление Столото
+      - name: Сразу пересчитать 🎯 / −1 / −2
+        run: node /tmp/keno-v622-server.mjs
+
+      - name: Сохранить верх и низ одним обновлением
         shell: bash
         env:
           STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
@@ -57,33 +89,39 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          FILES=(
+            keno-history-v62.json
+            keno-status-v62.json
+            cluster-archive-next-v622.json
+            cluster-archive-minus1-v622.json
+            cluster-archive-minus2-v622.json
+          )
+
           save_and_push() {
-            if git diff --quiet -- keno-history-v62.json keno-status-v62.json; then
-              echo "Новых подтверждённых данных нет"
+            if git diff --quiet -- "${FILES[@]}"; then
+              echo "Новых подтверждённых данных и изменений прогнозов нет"
               return 0
             fi
 
-            git add -- keno-history-v62.json keno-status-v62.json
-            git commit -m "KENO v6.2.2 · Stoloto auto update"
+            git add -- "${FILES[@]}"
+            git commit -m "KENO v6.2.2 · Stoloto + server predictions sync"
 
             if git push origin HEAD:main; then
-              echo "Обновление успешно сохранено"
+              echo "Верх и нижние прогнозы успешно сохранены вместе"
               return 0
             fi
 
             return 1
           }
 
-          # Первая попытка — сохраняем результат уже выполненной тройной проверки.
+          # Первая попытка: уже получены Столото и свежие прогнозы.
           if save_and_push; then
             exit 0
           fi
 
-          echo "main изменился параллельно. Повторяем работу от свежего main."
+          echo "main изменился параллельно. Повторяем полный цикл от свежего main."
 
-          # Если между чтением Столото и push появился новый коммит,
-          # не делаем конфликтный rebase изменённых JSON.
-          # Берём свежий main, повторяем тройную проверку и сохраняем заново.
+          # При конфликте заново читаем Столото И заново пересчитываем нижние архивы.
           for attempt in 2 3; do
             echo "Повторная попытка ${attempt}/3"
 
@@ -91,6 +129,7 @@ jobs:
             git reset --hard origin/main
 
             node stoloto-keno-update-v62.mjs
+            node /tmp/keno-v622-server.mjs
 
             if save_and_push; then
               exit 0
