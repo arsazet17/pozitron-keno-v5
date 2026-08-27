@@ -36,6 +36,15 @@
   const rubles=a=>`${Number(a||0).toLocaleString('ru-RU')} ₽`;
   const payoutFor=(s,g)=>Number(KENO_PAYOUTS[num(s)]?.[num(g)]||0);
 
+  function recordComboPayout(record,isAnti){
+    const actual=record?.actual;
+    if(!actual?.balls?.length)return 0;
+    const block=isAnti?record.antilogic:record.logic;
+    return (block?.combos||[]).reduce(
+      (sum,c)=>sum+payoutFor(c.size,hitSet(c.numbers,actual).size),0
+    );
+  }
+
   function readCache(h){
     try{
       const p=JSON.parse(localStorage.getItem(CACHE_KEYS[h])||'null');
@@ -85,7 +94,7 @@
       horizon:h,
       records:(Array.isArray(raw?.records)?raw.records:[])
         .map(r=>normalizeRecord(r,h))
-        .filter(Boolean)
+        .filter(Bolean)
         .sort((a,b)=>a.targetDraw-b.targetDraw)
     }
   }
@@ -281,6 +290,7 @@
     const modeHits=actual?hitSet(modeNumbers,actual):null;
     const modeCount=modeHits?modeHits.size:0;
     const modeLabel=isAnti?'ANTILOGIC':'LOGIC';
+    const summaryPayout=actual?recordComboPayout(record,isAnti):0;
 
     const body=`<div class="fp-head">
       <b>${META[record.horizon]?.button||'🎯'} тираж №${record.targetDraw}</b>
@@ -291,8 +301,11 @@
 
     if(expanded)return`<div class="fp-record">${body}</div>`;
     return`<details class="fp-record" data-fp-id="${record.id}">
-      <summary><b>${META[record.horizon]?.button} №${record.targetDraw}</b>
-      <span>${actual?`${modeLabel} ${modeCount}/20`:'⏳'}</span></summary>
+      <summary>
+        <b>${META[record.horizon]?.button} №${record.targetDraw}</b>
+        <span class="fp-summary-prize">${actual&&summaryPayout>0?`🔥 ${rubles(summaryPayout)}`:''}</span>
+        <span class="fp-summary-score">${actual?`${modeLabel} ${modeCount}/20`:'⏳'}</span>
+      </summary>
       ${body}
     </details>`
   }
@@ -336,7 +349,7 @@
 
     const payload=state.data[state.horizon]||readCache(state.horizon);
     if(!payload){
-      box.innerHTML=`<div class="fp-msg">${state.error?`Серверный архив временно недоступен: ${state.error}`:'Загружаю общий серверный архив FINGERPRINT…'}</div>`;
+      box.innerHTML=`<div class="fp-msg">${state.error?`Проверка архива сервера недоступна: ${state.error}`:'Загружаю общий серверный архив FINGERPRINT…'}</div>`;
       return
     }
 
@@ -375,6 +388,9 @@
 .fp-record{border:1px solid #2a4464;border-radius:12px;background:#0b1727;margin:8px 0;padding:8px}
 .fp-record>summary,.fp-head,.fp-combo-head{display:flex;justify-content:space-between;gap:8px}
 .fp-head span,.fp-record>summary span{color:#8eedaa;font-weight:900}
+.fp-record>summary{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px}
+.fp-summary-prize{justify-self:center;color:#ffad42!important;font-weight:950!important;white-space:nowrap}
+.fp-summary-score{justify-self:end;white-space:nowrap}
 .fp-target{margin:6px 0 9px;padding:7px;border:1px solid #355a3d;border-radius:8px;font-weight:950;color:#8eedaa}
 .anti-section .fp-target{border-color:#7b5d1c;color:#ffd37b}
 .fp-mode-title{font-size:17px;font-weight:950;margin-top:8px}
