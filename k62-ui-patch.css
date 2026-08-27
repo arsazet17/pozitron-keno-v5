@@ -1,0 +1,51 @@
+
+/* KENO 6.2 — NEXT DRAW + 5-column prediction/archive layout */
+.k62-next-draw{
+  margin:10px 0 12px;
+  padding:12px 14px;
+  border:2px solid #4ade80;
+  border-radius:13px;
+  background:#0d1b2d;
+  color:#f4f8ff;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size:18px;
+  font-weight:950;
+  letter-spacing:.2px;
+}
+.k62-next-draw span{font-size:22px}
+.k62-modebar{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:6px;
+  margin:8px 0;
+}
+.k62-modebar button{
+  min-width:0;
+  padding:8px 4px;
+  border-radius:9px;
+  border:1px solid #29415f;
+  background:#0e1b2d;
+  color:#f4f8ff;
+  font-weight:800;
+}
+.k62-modebar button.on{
+  background:#254b78;
+  border-color:#5b8fc9;
+}
+.k62-five{
+  display:grid !important;
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  gap:6px !important;
+}
+@media(min-width:620px){
+  .k62-five{grid-template-columns:repeat(5,minmax(0,1fr)) !important}
+}
+/* Existing main draw grid must also stay 4 rows x 5 numbers. */
+.numbers{
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+}
+@media(min-width:620px){
+  .numbers{grid-template-columns:repeat(5,minmax(0,1fr)) !important}
+}
