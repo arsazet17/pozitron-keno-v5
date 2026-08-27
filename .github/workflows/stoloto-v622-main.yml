@@ -1,4 +1,4 @@
-name: KENO v6.2 · Stoloto MAIN · FAST FACT
+name: KENO v6.2 · Stoloto MAIN · FAST FACT CHROME
 
 on:
   workflow_dispatch:
@@ -34,14 +34,132 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
 
-      - name: Установить Playwright
+      # ------------------------------------------------------------
+      # БЫСТРАЯ СРЕДА ДЛЯ READER:
+      # браузер НЕ скачиваем. Используем Chrome GitHub runner.
+      # ------------------------------------------------------------
+      - name: Подготовить Playwright БЕЗ скачивания Chromium
+        shell: bash
         run: |
-          npm init -y
-          npm install playwright
-          npx playwright install --with-deps chromium
+          set -euo pipefail
 
+          if [ ! -f package.json ]; then
+            npm init -y >/dev/null 2>&1
+          fi
+
+          npm install --no-audit --no-fund --ignore-scripts playwright
+
+          CHROME=""
+          for p in \
+            /usr/bin/google-chrome \
+            /usr/bin/google-chrome-stable \
+            /usr/bin/chromium \
+            /usr/bin/chromium-browser
+          do
+            if [ -x "$p" ]; then
+              CHROME="$p"
+              break
+            fi
+          done
+
+          if [ -z "$CHROME" ]; then
+            echo "Системный Chrome на runner не найден" >&2
+            exit 1
+          fi
+
+          echo "STOLOTO_CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
+          echo "Используем системный Chrome: $CHROME"
+
+      # ------------------------------------------------------------
+      # ЭТАП 1. СРАЗУ ЧИТАЕМ СТОЛОТО.
+      # НИКАКИХ движков прогнозов до FAST FACT.
+      # ------------------------------------------------------------
+      - name: Столото · M5M tail10 · FAST READ
+        env:
+          STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
+          STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
+          STOLOTO_CHROME_PATH: ${{ env.STOLOTO_CHROME_PATH }}
+        run: node stoloto-keno-update-v62.mjs
+
+      - name: Проверить, появился ли новый тираж
+        id: fresh
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- keno-history-v62.json; then
+            echo "has_new=false" >> "$GITHUB_OUTPUT"
+            echo "Нового тиража нет"
+          else
+            echo "has_new=true" >> "$GITHUB_OUTPUT"
+            echo "Новый тираж найден — публикуем ФАКТ сейчас"
+          fi
+
+      # Даже если нового факта нет, status сохраняем для диагностики reader.
+      - name: Сохранить status без нового факта
+        if: steps.fresh.outputs.has_new != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- keno-status-v62.json; then
+            echo "Status не изменился"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add keno-status-v62.json
+          git commit -m "KENO · reader status · новых тиражей нет"
+
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: СРАЗУ сохранить новый факт в GitHub
+        if: steps.fresh.outputs.has_new == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add keno-history-v62.json keno-status-v62.json
+          git commit -m "KENO · FAST FACT · новый тираж Столото"
+
+          for attempt in 1 2 3; do
+            echo "Публикация факта: попытка ${attempt}/3"
+
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "ФАКТ ОПУБЛИКОВАН"
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              sleep 2
+            fi
+          done
+
+          echo "Не удалось быстро опубликовать новый факт" >&2
+          exit 1
+
+      - name: Синхронизировать main после FAST FACT
+        if: steps.fresh.outputs.has_new == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+
+      # ------------------------------------------------------------
+      # ЭТАП 2. ТОЛЬКО ТЕПЕРЬ готовим и считаем прогнозы.
+      # ------------------------------------------------------------
       - name: Подготовить движок нижних прогнозов
+        if: steps.fresh.outputs.has_new == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -65,90 +183,18 @@ jobs:
           code = textwrap.dedent(match.group(1)).strip('\n') + '\n'
           target = Path('/tmp/keno-v622-server.mjs')
           target.write_text(code, encoding='utf-8')
-          print(f'Движок нижних прогнозов подготовлен: {len(code)} байт')
+          print(f'Движок подготовлен: {len(code)} байт')
           PY
           node --check /tmp/keno-v622-server.mjs
 
-      # ------------------------------------------------------------
-      # ЭТАП 1. ТОЛЬКО ФАКТ СТОЛОТО.
-      # Никакие прогнозы ещё не считаются.
-      # ------------------------------------------------------------
-      - name: Столото · OAuth · 3 независимых чтения
-        env:
-          STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
-          STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
-        run: node stoloto-keno-update-v62.mjs
-
-      - name: Проверить, появился ли новый тираж
-        id: fresh
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if git diff --quiet -- keno-history-v62.json; then
-            echo "has_new=false" >> "$GITHUB_OUTPUT"
-            echo "Нового тиража нет — тяжёлые прогнозы НЕ запускаем"
-          else
-            echo "has_new=true" >> "$GITHUB_OUTPUT"
-            echo "Новый тираж найден — сначала публикуем ФАКТ"
-          fi
-
-      # ------------------------------------------------------------
-      # ГЛАВНОЕ ИСПРАВЛЕНИЕ:
-      # новый факт публикуется СРАЗУ, до FINGERPRINT и прогнозов.
-      # ------------------------------------------------------------
-      - name: СРАЗУ сохранить новый факт в GitHub
-        if: steps.fresh.outputs.has_new == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add keno-history-v62.json keno-status-v62.json
-          git commit -m "KENO · FAST FACT · новый тираж Столото"
-
-          for attempt in 1 2 3; do
-            echo "Публикация факта: попытка ${attempt}/3"
-
-            if git pull --rebase origin main && git push origin HEAD:main; then
-              echo "ФАКТ ОПУБЛИКОВАН. Приложение уже может его получить."
-              exit 0
-            fi
-
-            if [ "$attempt" -lt 3 ]; then
-              sleep 2
-            fi
-          done
-
-          echo "Не удалось быстро опубликовать новый факт" >&2
-          exit 1
-
-      # После быстрого push рабочая копия синхронизируется с новым main.
-      - name: Синхронизировать main после публикации факта
-        if: steps.fresh.outputs.has_new == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git reset --hard origin/main
-
-      # ------------------------------------------------------------
-      # ЭТАП 2. ТЯЖЁЛЫЕ РАСЧЁТЫ — ТОЛЬКО ПОСЛЕ ПУБЛИКАЦИИ ФАКТА.
-      # ------------------------------------------------------------
       - name: Пересчитать 🎯 / −1 / −2
         if: steps.fresh.outputs.has_new == 'true'
         run: node /tmp/keno-v622-server.mjs
 
       - name: Пересчитать FINGERPRINT · LOGIC / ANTILOGIC
         if: steps.fresh.outputs.has_new == 'true'
-        run: |
-          set -euo pipefail
-          node scripts/fingerprint-v622-server.mjs
+        run: node scripts/fingerprint-v622-server.mjs
 
-      # Старый bump оставлен как есть, чтобы этим изменением
-      # не вмешиваться одновременно в отдельную систему версии.
       - name: Обновить текущий client build
         if: steps.fresh.outputs.has_new == 'true'
         env:
@@ -158,8 +204,6 @@ jobs:
       - name: Сохранить прогнозы и FINGERPRINT вторым обновлением
         if: steps.fresh.outputs.has_new == 'true'
         shell: bash
-        env:
-          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
 
@@ -170,11 +214,9 @@ jobs:
             cluster-archive-next-v622.json
             cluster-archive-minus1-v622.json
             cluster-archive-minus2-v622.json
-
             fingerprint-archive-next-v622.json
             fingerprint-archive-minus1-v622.json
             fingerprint-archive-minus2-v622.json
-
             index.html
             version-v622.json
           )
@@ -182,17 +224,15 @@ jobs:
           git add -- "${FILES[@]}"
 
           if git diff --cached --quiet; then
-            echo "После публикации факта дополнительных изменений нет"
+            echo "После FAST FACT дополнительных изменений нет"
             exit 0
           fi
 
           git commit -m "KENO · прогнозы + FINGERPRINT после FAST FACT"
 
           for attempt in 1 2 3; do
-            echo "Публикация прогнозов: попытка ${attempt}/3"
-
             if git pull --rebase origin main && git push origin HEAD:main; then
-              echo "Прогнозы и FINGERPRINT опубликованы"
+              echo "Прогнозы опубликованы"
               exit 0
             fi
 
@@ -201,12 +241,5 @@ jobs:
             fi
           done
 
-          echo "ФАКТ уже опубликован, но прогнозы не удалось сохранить после 3 попыток" >&2
+          echo "ФАКТ уже опубликован, но прогнозы не сохранились" >&2
           exit 1
-
-      - name: Быстро завершить запуск без нового тиража
-        if: steps.fresh.outputs.has_new != 'true'
-        run: |
-          echo "Нового факта нет."
-          echo "🎯 / −1 / −2 и FINGERPRINT не запускались."
-          echo "Workflow освобождает очередь для следующего внешнего cron."
