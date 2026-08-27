@@ -15,7 +15,7 @@ let html=fs.readFileSync('index.html','utf8');
 const buildParts=[];
 
 for(const asset of assets){
-  if(!fs.existsSync(asset))continue;
+  if(!fs.existsSync(asset)) continue;
 
   const buf=fs.readFileSync(asset);
   const hash=crypto.createHash('sha256').update(buf).digest('hex').slice(0,12);
@@ -43,9 +43,5 @@ version.build=build;
 version.updatedAt=new Date().toISOString();
 version.sha=process.env.GITHUB_SHA||version.sha||'';
 
-fs.writeFileSync(
-  'version-v622.json',
-  JSON.stringify(version,null,2)+'\n'
-);
-
+fs.writeFileSync('version-v622.json',JSON.stringify(version,null,2)+'\n');
 console.log(`PASS AUTO VERSION: ${build}`);
