@@ -34,13 +34,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: package-lock.json
 
-      # ------------------------------------------------------------
-      # БЫСТРАЯ СРЕДА ДЛЯ READER:
-      # браузер НЕ скачиваем. Используем Chrome GitHub runner.
-      # ------------------------------------------------------------
       - name: Подготовить Playwright БЕЗ скачивания Chromium
         shell: bash
         run: |
@@ -73,10 +67,7 @@ jobs:
           echo "STOLOTO_CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
           echo "Используем системный Chrome: $CHROME"
 
-      # ------------------------------------------------------------
-      # ЭТАП 1. СРАЗУ ЧИТАЕМ СТОЛОТО.
-      # НИКАКИХ движков прогнозов до FAST FACT.
-      # ------------------------------------------------------------
+      # СРАЗУ reader — хвост 10 как M5M.
       - name: Столото · M5M tail10 · FAST READ
         env:
           STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
@@ -98,7 +89,7 @@ jobs:
             echo "Новый тираж найден — публикуем ФАКТ сейчас"
           fi
 
-      # Даже если нового факта нет, status сохраняем для диагностики reader.
+      # Статус сохраняется даже без нового факта — видно каждый запуск.
       - name: Сохранить status без нового факта
         if: steps.fresh.outputs.has_new != 'true'
         shell: bash
@@ -132,16 +123,11 @@ jobs:
           git commit -m "KENO · FAST FACT · новый тираж Столото"
 
           for attempt in 1 2 3; do
-            echo "Публикация факта: попытка ${attempt}/3"
-
             if git pull --rebase origin main && git push origin HEAD:main; then
               echo "ФАКТ ОПУБЛИКОВАН"
               exit 0
             fi
-
-            if [ "$attempt" -lt 3 ]; then
-              sleep 2
-            fi
+            [ "$attempt" -lt 3 ] && sleep 2
           done
 
           echo "Не удалось быстро опубликовать новый факт" >&2
@@ -155,9 +141,7 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
 
-      # ------------------------------------------------------------
-      # ЭТАП 2. ТОЛЬКО ТЕПЕРЬ готовим и считаем прогнозы.
-      # ------------------------------------------------------------
+      # Только после публикации факта — прогнозный движок.
       - name: Подготовить движок нижних прогнозов
         if: steps.fresh.outputs.has_new == 'true'
         shell: bash
@@ -181,9 +165,7 @@ jobs:
               raise SystemExit('Не найден встроенный движок keno-v622-server.mjs')
 
           code = textwrap.dedent(match.group(1)).strip('\n') + '\n'
-          target = Path('/tmp/keno-v622-server.mjs')
-          target.write_text(code, encoding='utf-8')
-          print(f'Движок подготовлен: {len(code)} байт')
+          Path('/tmp/keno-v622-server.mjs').write_text(code, encoding='utf-8')
           PY
           node --check /tmp/keno-v622-server.mjs
 
@@ -235,10 +217,7 @@ jobs:
               echo "Прогнозы опубликованы"
               exit 0
             fi
-
-            if [ "$attempt" -lt 3 ]; then
-              sleep 2
-            fi
+            [ "$attempt" -lt 3 ] && sleep 2
           done
 
           echo "ФАКТ уже опубликован, но прогнозы не сохранились" >&2
