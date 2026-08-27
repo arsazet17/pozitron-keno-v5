@@ -190,6 +190,7 @@ const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const column=n=>n%10===0?10:n%10;
 let draws=[],mode='fall',timer=null;
+let updatePromise=null;
 const HIGH_DRAW_KEY='pozitron_v62_highest_draw';
 const DRAW_SCHEDULE=["00:02", "00:17", "00:32", "01:02", "01:17", "01:32", "02:02", "02:17", "02:32", "03:02", "03:32", "04:02", "04:17", "04:32", "05:02", "05:17", "05:32", "06:02", "06:17", "06:32", "07:02", "07:32", "08:02", "08:17", "08:32", "09:02", "09:17", "09:32", "10:02", "10:17", "10:32", "11:02", "11:32", "12:02", "12:17", "12:32", "13:02", "13:17", "13:32", "14:02", "14:17", "14:32", "15:02", "15:32", "16:02", "16:17", "16:32", "17:02", "17:17", "17:32", "18:02", "18:17", "18:32", "19:02", "19:32", "20:02", "20:17", "20:32", "21:02", "21:17", "21:32", "22:02", "22:17", "22:32", "23:02", "23:32"];
 
@@ -587,46 +588,58 @@ async function fetchTextWithTimeout(url,ms=7000){
 }
 
 async function update(){
- const saved=(localStorage.getItem('pozitron_v62_url')||'./keno-history-v62.json').trim();
- const sources=[
-  saved,
-  './keno-history-v62.json',
-  'https://raw.githubusercontent.com/arsazet17/pozitron-keno-v5/main/keno-history-v62.json',
-  'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws'
- ].filter((url,index,list)=>url&&list.indexOf(url)===index);
+ if(updatePromise)return updatePromise;
 
- // FINGERPRINT JSON здесь намеренно НЕ читаются:
- // они большие и имеют свой отдельный модуль. Главная берёт факты из keno-history.
- $('status').textContent='Проверяю новые тиражи…';
+ updatePromise=(async()=>{
+  const saved=(localStorage.getItem('pozitron_v62_url')||'./keno-history-v62.json').trim();
+  const primary='./keno-history-v62.json';
+  const reserve=[
+   saved,
+   'https://raw.githubusercontent.com/arsazet17/pozitron-keno-v5/main/keno-history-v62.json',
+   'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws'
+  ].filter((url,index,list)=>url&&url!==primary&&list.indexOf(url)===index);
 
- let totalAdded=0;
- const settled=await Promise.allSettled(
-  sources.map(async url=>{
-   const text=await fetchTextWithTimeout(url,7000);
+  $('status').textContent='Проверяю новые тиражи…';
+
+  // 1) Сначала только основной архив GitHub Pages.
+  // Как только он получен — экран обновляется СРАЗУ.
+  try{
+   const text=await fetchTextWithTimeout(primary,5000);
    const arr=parse(text);
-   if(!arr.length)throw new Error('нет распознанных тиражей');
-   return {url,arr,max:Number(arr.at(-1)?.draw||0)}
-  })
- );
+   if(!arr.length)throw new Error('основной архив пуст');
+   const added=merge(arr);
+   render();
+   $('status').textContent=`Добавлено ${added} · всего ${draws.length} · последний №${draws.at(-1)?.draw||'—'}`;
+   return;
+  }catch(primaryError){
+   console.warn('Основной архив временно недоступен',primaryError);
+  }
 
- const good=settled
-  .filter(x=>x.status==='fulfilled')
-  .map(x=>x.value)
-  .sort((a,b)=>b.max-a.max);
+  // 2) Резервные источники — только если основной не сработал.
+  let lastError=null;
+  for(const url of reserve){
+   try{
+    const text=await fetchTextWithTimeout(url,5000);
+    const arr=parse(text);
+    if(!arr.length)throw new Error('нет распознанных тиражей');
+    const added=merge(arr);
+    render();
+    $('status').textContent=`Резерв · добавлено ${added} · всего ${draws.length} · последний №${draws.at(-1)?.draw||'—'}`;
+    return;
+   }catch(e){
+    lastError=e;
+   }
+  }
 
- // Сначала самый свежий источник. Ни один старый ответ не удаляет уже полученный тираж.
- for(const item of good)totalAdded+=merge(item.arr);
+  render();
+  const msg=lastError?.name==='AbortError'?'таймаут источника':(lastError?.message||'источники недоступны');
+  $('status').textContent='Обновление не выполнено: '+msg;
+ })();
 
- render();
-
- if(good.length){
-  $('status').textContent=`Добавлено ${totalAdded} · всего ${draws.length} · последний №${draws.at(-1)?.draw||'—'}`
- }else{
-  const failed=settled.slice().reverse().find(x=>x.status==='rejected');
-  const msg=failed?.reason?.name==='AbortError'
-   ?'таймаут источника'
-   :(failed?.reason?.message||'источники недоступны');
-  $('status').textContent='Обновление не выполнено: '+msg
+ try{
+  await updatePromise;
+ }finally{
+  updatePromise=null;
  }
 }
 function auto(){
