@@ -1,0 +1,52 @@
+name: KENO 6.2 · AUTO FINGERPRINT FIX
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "k62-fingerprint-exact.js"
+      - "k62-fingerprint-exact.css"
+      - "install-k62-fingerprint-exact.mjs"
+      - ".github/workflows/fingerprint-exact.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-62-fingerprint-exact
+  cancel-in-progress: true
+
+jobs:
+  install:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Подключить точный FINGERPRINT patch
+        run: node install-k62-fingerprint-exact.mjs
+
+      - name: Сохранить index.html
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html; then
+            echo "FINGERPRINT patch уже подключён"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "KENO 6.2 · exact FINGERPRINT UI fix"
+          git push origin HEAD:main
