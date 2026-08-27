@@ -1,0 +1,55 @@
+name: KENO 6.2 · VM PAIRS LIKE ARCHIVE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "patch-fingerprint-vm-pairs.mjs"
+      - ".github/workflows/fingerprint-vm-pairs.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-62-vm-pairs
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Сделать Вм как в основном архиве
+        run: node patch-fingerprint-vm-pairs.mjs
+
+      - name: Проверить JS
+        run: node --check fingerprint-v622.js
+
+      - name: Сохранить
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- fingerprint-v622.js index.html; then
+            echo "Уже установлено"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add fingerprint-v622.js index.html
+          git commit -m "KENO 6.2 · VM pairs like main archive"
+          git push origin HEAD:main
