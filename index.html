@@ -31,6 +31,9 @@ button,input,select{font:inherit}
 .mode{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:8px 0}
 .mode button{padding:8px 3px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:13px}
 .mode button.on{background:#254b78;border-color:#5b8fc9;font-weight:800}
+.next-draw{margin:10px 0 12px;padding:13px 14px;border:2px solid #4ade80;border-radius:14px;background:#0d1b2d;color:#f4f8ff;display:flex;align-items:center;gap:10px;font-size:18px;font-weight:950;letter-spacing:.15px}
+.next-draw span{font-size:22px}
+
 .card{background:rgba(14,27,45,.98);border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:8px;box-shadow:0 5px 18px rgba(0,0,0,.18)}
 .head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
 .label{font-size:11px;text-transform:uppercase;letter-spacing:.75px;color:var(--muted);font-weight:850}
@@ -80,8 +83,6 @@ dialog{width:calc(100% - 20px);max-width:700px;background:#0e1b2d;color:var(--te
 dialog::backdrop{background:rgba(0,0,0,.72)}
 @media(min-width:620px){.numbers{grid-template-columns:repeat(10,1fr)}}
 </style>
-
-<link rel="stylesheet" href="k62-ui-patch.css?v=33059255501-1">
 </head>
 <body>
 <div class="app">
@@ -98,10 +99,12 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
   </div>
 
   <div class="mode">
-    <button class="on" data-mode="fall">Выпадение</button>
-    <button data-mode="asc">Возрастание</button>
-    <button data-mode="both">Вместе</button>
+    <button class="on" data-mode="fall">Вып</button>
+    <button data-mode="asc">Возр</button>
+    <button data-mode="both">Вм</button>
   </div>
+
+  <div id="nextDraw" class="next-draw"><span>📅</span><strong>Синхронизирую следующий тираж…</strong></div>
 
   <div class="sub" style="margin:0 2px 8px">🔸 реальное переходное число из предыдущего тиража · зелёная линия — одно и то же число стоит на одинаковом месте в выпадении и возрастании</div>
 
@@ -170,6 +173,7 @@ dialog::backdrop{background:rgba(0,0,0,.72)}
     <label class="small">Проверять автоматически</label>
     <select id="interval">
       <option value="0">Выключено</option>
+      <option value="60000">Каждую 1 минуту</option>
       <option value="300000">Каждые 5 минут</option>
       <option value="600000">Каждые 10 минут</option>
       <option value="1800000">Каждые 30 минут</option>
@@ -186,6 +190,9 @@ const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const column=n=>n%10===0?10:n%10;
 let draws=[],mode='fall',timer=null;
+const HIGH_DRAW_KEY='pozitron_v62_highest_draw';
+const DRAW_SCHEDULE=["00:02", "00:17", "00:32", "01:02", "01:17", "01:32", "02:02", "02:17", "02:32", "03:02", "03:32", "04:02", "04:17", "04:32", "05:02", "05:17", "05:32", "06:02", "06:17", "06:32", "07:02", "07:32", "08:02", "08:17", "08:32", "09:02", "09:17", "09:32", "10:02", "10:17", "10:32", "11:02", "11:32", "12:02", "12:17", "12:32", "13:02", "13:17", "13:32", "14:02", "14:17", "14:32", "15:02", "15:32", "16:02", "16:17", "16:32", "17:02", "17:17", "17:32", "18:02", "18:17", "18:32", "19:02", "19:32", "20:02", "20:17", "20:32", "21:02", "21:17", "21:32", "22:02", "22:17", "22:32", "23:02", "23:32"];
+
 const analysisCache=new WeakMap();
 
 function normDate(v){
@@ -199,7 +206,7 @@ function normDate(v){
 function showDate(v){const p=normDate(v).split('-');return p.length===3?`${p[2]}.${p[1]}.${p[0]}`:v}
 function normTime(v){return String(v||'').match(/\d{1,2}:\d{2}(?::\d{2})?/)?.[0]||String(v||'')}
 function valid(o){
- const draw=Number(o.draw??o.number??o.drawNumber??o.id);
+ const draw=Number(o.draw??o.number??o.drawNumber??o.targetDraw??o.id);
  const date=normDate(o.date??o.drawDate??o.datetime??'');
  const time=normTime(o.time??o.drawTime??o.datetime??'');
  let balls=o.balls??o.numbers??o.results??o.result??o.winningNumbers;
@@ -248,9 +255,29 @@ function analysis(d){
  analysisCache.set(d,result);
  return result
 }
-function save(){localStorage.setItem('pozitron_v5_draws',JSON.stringify(draws))}
-function load(){try{draws=dedupe(JSON.parse(localStorage.getItem('pozitron_v5_draws')||'[]'))}catch{draws=[]}}
-function merge(a){const before=draws.length;draws=dedupe([...draws,...a]);save();return draws.length-before}
+function highestSeen(){return Number(localStorage.getItem(HIGH_DRAW_KEY)||0)}
+function rememberHighest(){
+ const n=Number(draws.at(-1)?.draw||0);
+ if(n>highestSeen())localStorage.setItem(HIGH_DRAW_KEY,String(n))
+}
+function save(){
+ localStorage.setItem('pozitron_v5_draws',JSON.stringify(draws));
+ rememberHighest()
+}
+function load(){
+ try{draws=dedupe(JSON.parse(localStorage.getItem('pozitron_v5_draws')||'[]'))}
+ catch{draws=[]}
+}
+function merge(a){
+ const before=draws.length;
+ const oldMax=Number(draws.at(-1)?.draw||0);
+ const merged=dedupe([...draws,...a]);
+ const newMax=Number(merged.at(-1)?.draw||0);
+ if(newMax<oldMax)return 0;
+ draws=merged;
+ save();
+ return draws.length-before
+}
 function transitions(i){if(i<=0)return new Set();return new Set(draws[i-1].balls.filter(n=>draws[i].balls.includes(n)))}
 function ball(d,i,p){
  const asc=[...d.balls].sort((a,b)=>a-b);
@@ -287,6 +314,11 @@ function card(d,i,label){
  </section>`
 }
 function renderCards(){
+ const localMax=Number(draws.at(-1)?.draw||0),high=highestSeen();
+ if(high&&localMax<high){
+  $('cards').innerHTML='<section class="card small"><b>Синхронизирую свежий тираж…</b><br>Старый тираж не показываю.</section>';
+  return
+ }
  const labels=['ПОСЛЕДНИЙ ТИРАЖ','ПРЕДЫДУЩИЙ ТИРАЖ','ПРЕДПРЕДЫДУЩИЙ ТИРАЖ'];
  if(!draws.length){
   $('cards').innerHTML='<section class="card small"><b>ПОЗИТРОН КЕНО v5 запущен.</b><br>База пока пустая. Откройте «База» и импортируйте CSV/JSON либо настройте источник обновления через ⚙.</section>';
@@ -516,40 +548,91 @@ function runAnalogsPlus(){
  <div class="row small"><b>Зафиксировано строго на №${targetDraw}.</b> Эти числа и К5 не будут проверяться ни по одному другому тиражу.</div>`;
  renderLivePredictionCheck();
 }
+function nextDrawTime(time){
+ const t=normTime(time).slice(0,5),i=DRAW_SCHEDULE.indexOf(t);
+ return i<0?'—':DRAW_SCHEDULE[(i+1)%DRAW_SCHEDULE.length]
+}
+function renderNextDraw(){
+ const box=$('nextDraw'),last=draws.at(-1);
+ if(!box)return;
+ if(!last){
+  box.innerHTML='<span>📅</span><strong>Синхронизирую следующий тираж…</strong>';
+  return
+ }
+ box.innerHTML=`<span>📅</span><strong>СЛЕД ТИРАЖ №${Number(last.draw)+1} · ${nextDrawTime(last.time)}</strong>`
+}
 function render(){
+ renderNextDraw();
  $('status').textContent=draws.length?`v6.2.2 · база: ${draws.length.toLocaleString('ru-RU')} · последний №${draws.at(-1).draw}`:'Версия v6.2.2 · база: 0';
  if(draws.length&&!$('chainDate').value)$('chainDate').value=draws.at(-1).date;
  renderCards();renderChains();renderArchive();renderLivePredictionCheck()
 }
+async function fetchTextWithTimeout(url,ms=7000){
+ const controller=new AbortController();
+ const timeoutId=setTimeout(()=>controller.abort(),ms);
+ try{
+  const separator=url.includes('?')?'&':'?';
+  const bustCache=url.startsWith('./')||url.includes('raw.githubusercontent.com');
+  const requestUrl=bustCache?`${url}${separator}t=${Date.now()}`:url;
+  const r=await fetch(requestUrl,{
+   cache:'no-store',
+   signal:controller.signal,
+   headers:{'cache-control':'no-cache, no-store, must-revalidate',pragma:'no-cache'}
+  });
+  if(!r.ok)throw new Error(`HTTP ${r.status}`);
+  return await r.text()
+ }finally{
+  clearTimeout(timeoutId)
+ }
+}
+
 async function update(){
  const saved=(localStorage.getItem('pozitron_v62_url')||'./keno-history-v62.json').trim();
  const sources=[
   saved,
   './keno-history-v62.json',
+  './fingerprint-archive-next-v622.json',
+  './fingerprint-archive-minus1-v622.json',
+  './fingerprint-archive-minus2-v622.json',
   'https://raw.githubusercontent.com/arsazet17/pozitron-keno-v5/main/keno-history-v62.json',
   'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws'
  ].filter((url,index,list)=>url&&list.indexOf(url)===index);
+
  $('status').textContent='Проверяю новые тиражи…';
- let lastError=null,totalAdded=0,sourceWorked=false;
- for(const url of sources){
-  try{
-   const separator=url.includes('?')?'&':'?';
-   const bustCache=url.startsWith('./')||url.includes('raw.githubusercontent.com');
-   const requestUrl=bustCache?`${url}${separator}t=${Date.now()}`:url;
-   const r=await fetch(requestUrl,{cache:'no-store'});if(!r.ok)throw new Error(`HTTP ${r.status}`);
-   const arr=parse(await r.text());if(!arr.length)throw new Error('нет распознанных тиражей');
-   sourceWorked=true;
-   totalAdded+=merge(arr);
-  }catch(e){lastError=e}
- }
+
+ let totalAdded=0;
+ const settled=await Promise.allSettled(
+  sources.map(async url=>{
+   const text=await fetchTextWithTimeout(url,7000);
+   const arr=parse(text);
+   if(!arr.length)throw new Error('нет распознанных тиражей');
+   return {url,arr,max:Number(arr.at(-1)?.draw||0)}
+  })
+ );
+
+ const good=settled
+  .filter(x=>x.status==='fulfilled')
+  .map(x=>x.value)
+  .sort((a,b)=>b.max-a.max);
+
+ // Сначала самый свежий источник. Ни один старый ответ не удаляет уже полученный тираж.
+ for(const item of good)totalAdded+=merge(item.arr);
+
  render();
- $('status').textContent=sourceWorked
-  ?`Добавлено ${totalAdded} · всего ${draws.length}`
-  :'Обновление не выполнено: '+(lastError?.message||'источник недоступен')
+
+ if(good.length){
+  $('status').textContent=`Добавлено ${totalAdded} · всего ${draws.length} · последний №${draws.at(-1)?.draw||'—'}`
+ }else{
+  const failed=settled.slice().reverse().find(x=>x.status==='rejected');
+  const msg=failed?.reason?.name==='AbortError'
+   ?'таймаут источника'
+   :(failed?.reason?.message||'источники недоступны');
+  $('status').textContent='Обновление не выполнено: '+msg
+ }
 }
 function auto(){
  clearInterval(timer);timer=null;
- const ms=Number(localStorage.getItem('pozitron_v5_interval')||300000);
+ const ms=Number(localStorage.getItem('pozitron_v5_interval')||60000);
  if(ms)timer=setInterval(update,ms)
 }
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-mode]').forEach(x=>x.classList.remove('on'));b.classList.add('on');mode=b.dataset.mode;renderCards()});
@@ -560,15 +643,18 @@ $('findBtn').onclick=()=>{const n=Number($('searchDraw').value),d=draws.find(x=>
 $('importFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const added=merge(parse(r.result));render();$('status').textContent=`Импорт: добавлено ${added} · всего ${draws.length}`};r.readAsText(f,'UTF-8')};
 $('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:'6.2',exportedAt:new Date().toISOString(),draws},null,2)],{type:'application/json'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='ПОЗИТРОН_КЕНО_v6_2_БАЗА.json';a.click();URL.revokeObjectURL(u)};
 $('sync').onclick=update;$('sync2').onclick=update;
-$('settingsBtn').onclick=()=>{$('sourceUrl').value=localStorage.getItem('pozitron_v62_url')||'./keno-history-v62.json';$('interval').value=localStorage.getItem('pozitron_v5_interval')||'300000';$('settings').showModal()};
+$('settingsBtn').onclick=()=>{$('sourceUrl').value=localStorage.getItem('pozitron_v62_url')||'./keno-history-v62.json';$('interval').value=localStorage.getItem('pozitron_v5_interval')||'60000';$('settings').showModal()};
 $('saveSettings').onclick=()=>{localStorage.setItem('pozitron_v62_url',$('sourceUrl').value.trim());localStorage.setItem('pozitron_v5_interval',$('interval').value);auto();update()};
 $('chainDate').onchange=renderChains;
-load();render();auto();setTimeout(update,800);
+load();
+render();
+auto();
+update();
+window.addEventListener('focus',update);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')update()});
 </script>
 <script src="./cluster-model-v622.js?v=4ce464c2ee85"></script>
-<script src="./cluster-tracker-v622.js?v=e42ed9ee2028"></script><script src="./fingerprint-v622.js?v=8f1cefb3d76a"></script>
-<script src="./app-version-v622.js?v=e2d691e9660f"></script>
-
-<script src="k62-ui-patch.js?v=33059255501-1"></script>
+<script src="./cluster-tracker-v622.js?v=e42ed9ee2028"></script><script src="./fingerprint-v622.js?v=ef430f929ae4"></script>
+<script src="./app-version-v622.js?v=4c9591c190df"></script>
 </body>
 </html>
