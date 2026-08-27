@@ -1,0 +1,55 @@
+name: KENO 6.2 · ARCHIVE OVERLAY ON DRAW
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "patch-fingerprint-archive-overlay.mjs"
+      - ".github/workflows/fingerprint-archive-overlay.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-62-archive-overlay
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Наложить архив на фактический тираж
+        run: node patch-fingerprint-archive-overlay.mjs
+
+      - name: Проверить FINGERPRINT
+        run: node --check fingerprint-v622.js
+
+      - name: Сохранить изменения
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- fingerprint-v622.js index.html; then
+            echo "Уже установлено"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add fingerprint-v622.js index.html
+          git commit -m "KENO 6.2 · archive overlay follows draw numbers"
+          git push origin HEAD:main
