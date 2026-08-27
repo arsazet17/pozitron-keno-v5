@@ -274,11 +274,17 @@
 
   function forecastHtml(record,expanded){
     const actual=record.actual;
-    const poolHits=actual?hitSet(record.logic.pool20,actual):null;
-    const poolCount=poolHits?poolHits.size:0;
+    const isAnti=state.mode==='antilogic';
+    const modeNumbers=isAnti
+      ?(record.antilogic?.candidates||[])
+      :(record.logic?.pool20||[]);
+    const modeHits=actual?hitSet(modeNumbers,actual):null;
+    const modeCount=modeHits?modeHits.size:0;
+    const modeLabel=isAnti?'ANTILOGIC':'LOGIC';
+
     const body=`<div class="fp-head">
       <b>${META[record.horizon]?.button||'🎯'} тираж №${record.targetDraw}</b>
-      <span>${actual?`POOL ${poolCount}/20`:'ожидает результата'}</span>
+      <span>${actual?`${modeLabel} ${modeCount}/20`:'ожидает результата'}</span>
     </div>
     <div class="fp-note">Зафиксировано после №${record.sourceDraw}. Прогноз после сохранения не меняется.</div>
     ${sectionHtml(record)}`;
@@ -286,7 +292,7 @@
     if(expanded)return`<div class="fp-record">${body}</div>`;
     return`<details class="fp-record" data-fp-id="${record.id}">
       <summary><b>${META[record.horizon]?.button} №${record.targetDraw}</b>
-      <span>${actual?(state.mode==='logic'?`POOL ${poolCount}/20`:'ANTILOGIC'):'⏳'}</span></summary>
+      <span>${actual?`${modeLabel} ${modeCount}/20`:'⏳'}</span></summary>
       ${body}
     </details>`
   }
