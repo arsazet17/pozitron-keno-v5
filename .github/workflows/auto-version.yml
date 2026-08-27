@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Проверить клиентский JS
+      - name: Проверить JS
         run: |
           node --check fingerprint-v622.js
           node --check app-version-v622.js
@@ -45,22 +45,23 @@ jobs:
           node --check cluster-tracker-v622.js
           node --check refresh-asset-versions.mjs
 
-      - name: Пересчитать ?v= и общий build
+      - name: Поднять версию и пересчитать build
         run: node refresh-asset-versions.mjs
 
-      - name: Сохранить index и build
+      - name: Сохранить новую версию
         shell: bash
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- index.html version-v622.json; then
-            echo "Версия уже актуальна"
-            exit 0
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add index.html version-v622.json
-          git commit -m "KENO 6.2 · AUTO VERSION"
+          git add index.html version-v622.json manifest.webmanifest
+
+          if git diff --cached --quiet; then
+            echo "Изменений нет"
+            exit 0
+          fi
+
+          git commit -m "KENO · AUTO VERSION"
           git push origin HEAD:main
