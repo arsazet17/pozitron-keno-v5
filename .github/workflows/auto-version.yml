@@ -1,4 +1,4 @@
-name: KENO 6.2 · AUTO VERSION FINAL
+name: KENO 6.2 · AUTO VERSION
 
 on:
   workflow_dispatch:
@@ -11,10 +11,7 @@ on:
       - "cluster-tracker-v622.js"
       - "fingerprint-v622.js"
       - "app-version-v622.js"
-      - "k62-ui-patch.js"
-      - "k62-ui-patch.css"
       - "manifest.webmanifest"
-      - "fix-index-literal-newline.mjs"
       - "refresh-asset-versions.mjs"
       - ".github/workflows/auto-version.yml"
 
@@ -22,7 +19,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: keno-62-auto-version-final
+  group: keno-62-auto-version
   cancel-in-progress: true
 
 jobs:
@@ -40,10 +37,15 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Убрать буквальный newline
-        run: node fix-index-literal-newline.mjs
+      - name: Проверить клиентский JS
+        run: |
+          node --check fingerprint-v622.js
+          node --check app-version-v622.js
+          node --check cluster-model-v622.js
+          node --check cluster-tracker-v622.js
+          node --check refresh-asset-versions.mjs
 
-      - name: Пересчитать все версии
+      - name: Пересчитать ?v= и общий build
         run: node refresh-asset-versions.mjs
 
       - name: Сохранить index и build
@@ -52,7 +54,7 @@ jobs:
           set -euo pipefail
 
           if git diff --quiet -- index.html version-v622.json; then
-            echo "Версии уже актуальны"
+            echo "Версия уже актуальна"
             exit 0
           fi
 
@@ -60,5 +62,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add index.html version-v622.json
-          git commit -m "KENO 6.2 · AUTO VERSION FINAL"
+          git commit -m "KENO 6.2 · AUTO VERSION"
           git push origin HEAD:main
