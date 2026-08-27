@@ -1,16 +1,51 @@
-
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
-const indexPath = 'index.html';
-let html = fs.readFileSync(indexPath, 'utf8');
+const assets=[
+  'cluster-model-v622.js',
+  'cluster-tracker-v622.js',
+  'fingerprint-v622.js',
+  'app-version-v622.js',
+  'k62-ui-patch.js',
+  'k62-ui-patch.css',
+  'manifest.webmanifest'
+];
 
-const assets = ['k62-ui-patch.css','k62-ui-patch.js'];
-for (const asset of assets) {
-  if (!fs.existsSync(asset)) continue;
-  const hash = crypto.createHash('sha256').update(fs.readFileSync(asset)).digest('hex').slice(0,12);
-  const esc = asset.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`(${esc})(?:\\?v=[^"'<>\\s]+)?`, 'g');
-  html = html.replace(re, `$1?v=${hash}`);
+let html=fs.readFileSync('index.html','utf8');
+const buildParts=[];
+
+for(const asset of assets){
+  if(!fs.existsSync(asset))continue;
+
+  const buf=fs.readFileSync(asset);
+  const hash=crypto.createHash('sha256').update(buf).digest('hex').slice(0,12);
+  buildParts.push(`${asset}:${hash}`);
+
+  const escaped=asset.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re=new RegExp(`(${escaped})(?:\\?v=[^"'<>\\s]+)?`,'g');
+  html=html.replace(re,`$1?v=${hash}`);
 }
-fs.writeFileSync(indexPath, html);
+
+fs.writeFileSync('index.html',html);
+
+const build=crypto
+  .createHash('sha256')
+  .update(buildParts.join('|'))
+  .digest('hex')
+  .slice(0,16);
+
+let version={app:'KENO 6.2.2'};
+try{
+  version=JSON.parse(fs.readFileSync('version-v622.json','utf8'));
+}catch{}
+
+version.build=build;
+version.updatedAt=new Date().toISOString();
+version.sha=process.env.GITHUB_SHA||version.sha||'';
+
+fs.writeFileSync(
+  'version-v622.json',
+  JSON.stringify(version,null,2)+'\n'
+);
+
+console.log(`PASS AUTO VERSION: ${build}`);
