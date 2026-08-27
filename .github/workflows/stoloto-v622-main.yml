@@ -1,4 +1,4 @@
-name: KENO v6.2.2 · Stoloto MAIN
+name: KENO v6.2 · Stoloto MAIN · FAST FACT
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
       - name: Синхронизировать актуальный main
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           git fetch origin main
           git reset --hard origin/main
           echo "Работаем от актуального main: $(git rev-parse HEAD)"
@@ -69,30 +69,96 @@ jobs:
           PY
           node --check /tmp/keno-v622-server.mjs
 
+      # ------------------------------------------------------------
+      # ЭТАП 1. ТОЛЬКО ФАКТ СТОЛОТО.
+      # Никакие прогнозы ещё не считаются.
+      # ------------------------------------------------------------
       - name: Столото · OAuth · 3 независимых чтения
         env:
           STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
           STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
         run: node stoloto-keno-update-v62.mjs
 
-      - name: Сразу пересчитать 🎯 / −1 / −2
+      - name: Проверить, появился ли новый тираж
+        id: fresh
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- keno-history-v62.json; then
+            echo "has_new=false" >> "$GITHUB_OUTPUT"
+            echo "Нового тиража нет — тяжёлые прогнозы НЕ запускаем"
+          else
+            echo "has_new=true" >> "$GITHUB_OUTPUT"
+            echo "Новый тираж найден — сначала публикуем ФАКТ"
+          fi
+
+      # ------------------------------------------------------------
+      # ГЛАВНОЕ ИСПРАВЛЕНИЕ:
+      # новый факт публикуется СРАЗУ, до FINGERPRINT и прогнозов.
+      # ------------------------------------------------------------
+      - name: СРАЗУ сохранить новый факт в GitHub
+        if: steps.fresh.outputs.has_new == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add keno-history-v62.json keno-status-v62.json
+          git commit -m "KENO · FAST FACT · новый тираж Столото"
+
+          for attempt in 1 2 3; do
+            echo "Публикация факта: попытка ${attempt}/3"
+
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "ФАКТ ОПУБЛИКОВАН. Приложение уже может его получить."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              sleep 2
+            fi
+          done
+
+          echo "Не удалось быстро опубликовать новый факт" >&2
+          exit 1
+
+      # После быстрого push рабочая копия синхронизируется с новым main.
+      - name: Синхронизировать main после публикации факта
+        if: steps.fresh.outputs.has_new == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git reset --hard origin/main
+
+      # ------------------------------------------------------------
+      # ЭТАП 2. ТЯЖЁЛЫЕ РАСЧЁТЫ — ТОЛЬКО ПОСЛЕ ПУБЛИКАЦИИ ФАКТА.
+      # ------------------------------------------------------------
+      - name: Пересчитать 🎯 / −1 / −2
+        if: steps.fresh.outputs.has_new == 'true'
         run: node /tmp/keno-v622-server.mjs
 
-      - name: Сразу пересчитать FINGERPRINT · LOGIC / ANTILOGIC
+      - name: Пересчитать FINGERPRINT · LOGIC / ANTILOGIC
+        if: steps.fresh.outputs.has_new == 'true'
         run: |
           set -euo pipefail
           node scripts/fingerprint-v622-server.mjs
 
-      - name: Новый build приложения и cache-busting ?v=
+      # Старый bump оставлен как есть, чтобы этим изменением
+      # не вмешиваться одновременно в отдельную систему версии.
+      - name: Обновить текущий client build
+        if: steps.fresh.outputs.has_new == 'true'
         env:
           BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: node scripts/bump-client-version-v622.mjs
 
-      - name: Сохранить всё одним атомарным обновлением
+      - name: Сохранить прогнозы и FINGERPRINT вторым обновлением
+        if: steps.fresh.outputs.has_new == 'true'
         shell: bash
         env:
-          STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
-          STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
           BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
@@ -101,9 +167,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           FILES=(
-            keno-history-v62.json
-            keno-status-v62.json
-
             cluster-archive-next-v622.json
             cluster-archive-minus1-v622.json
             cluster-archive-minus2-v622.json
@@ -116,49 +179,34 @@ jobs:
             version-v622.json
           )
 
-          rebuild_all() {
-            node stoloto-keno-update-v62.mjs
-            node /tmp/keno-v622-server.mjs
-            node scripts/fingerprint-v622-server.mjs
-            BUILD_ID="${BUILD_ID}" node scripts/bump-client-version-v622.mjs
-          }
+          git add -- "${FILES[@]}"
 
-          save_and_push() {
-            git add -- "${FILES[@]}"
-
-            if git diff --cached --quiet; then
-              echo "Новых подтверждённых данных и изменений нет"
-              return 0
-            fi
-
-            git commit -m "KENO v6.2.2 · full sync + FINGERPRINT + client build"
-
-            if git push origin HEAD:main; then
-              echo "История, прогнозы, LOGIC/ANTILOGIC и build сохранены вместе"
-              return 0
-            fi
-
-            return 1
-          }
-
-          if save_and_push; then
+          if git diff --cached --quiet; then
+            echo "После публикации факта дополнительных изменений нет"
             exit 0
           fi
 
-          echo "main изменился параллельно. Пересобираем полный цикл от свежего main."
+          git commit -m "KENO · прогнозы + FINGERPRINT после FAST FACT"
 
-          for attempt in 2 3; do
-            echo "Повторная попытка ${attempt}/3"
+          for attempt in 1 2 3; do
+            echo "Публикация прогнозов: попытка ${attempt}/3"
 
-            git fetch origin main
-            git reset --hard origin/main
-
-            rebuild_all
-
-            if save_and_push; then
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Прогнозы и FINGERPRINT опубликованы"
               exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              sleep 2
             fi
           done
 
-          echo "Не удалось сохранить после 3 попыток из-за параллельных обновлений" >&2
+          echo "ФАКТ уже опубликован, но прогнозы не удалось сохранить после 3 попыток" >&2
           exit 1
+
+      - name: Быстро завершить запуск без нового тиража
+        if: steps.fresh.outputs.has_new != 'true'
+        run: |
+          echo "Нового факта нет."
+          echo "🎯 / −1 / −2 и FINGERPRINT не запускались."
+          echo "Workflow освобождает очередь для следующего внешнего cron."
