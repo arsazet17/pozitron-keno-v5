@@ -78,11 +78,22 @@ jobs:
       - name: Сразу пересчитать 🎯 / −1 / −2
         run: node /tmp/keno-v622-server.mjs
 
-      - name: Сохранить верх и низ одним обновлением
+      - name: Сразу пересчитать FINGERPRINT · LOGIC / ANTILOGIC
+        run: |
+          set -euo pipefail
+          node scripts/fingerprint-v622-server.mjs
+
+      - name: Новый build приложения и cache-busting ?v=
+        env:
+          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/bump-client-version-v622.mjs
+
+      - name: Сохранить всё одним атомарным обновлением
         shell: bash
         env:
           STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
           STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
+          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
 
@@ -92,50 +103,61 @@ jobs:
           FILES=(
             keno-history-v62.json
             keno-status-v62.json
+
             cluster-archive-next-v622.json
             cluster-archive-minus1-v622.json
             cluster-archive-minus2-v622.json
+
+            fingerprint-archive-next-v622.json
+            fingerprint-archive-minus1-v622.json
+            fingerprint-archive-minus2-v622.json
+
+            index.html
+            version-v622.json
           )
 
+          rebuild_all() {
+            node stoloto-keno-update-v62.mjs
+            node /tmp/keno-v622-server.mjs
+            node scripts/fingerprint-v622-server.mjs
+            BUILD_ID="${BUILD_ID}" node scripts/bump-client-version-v622.mjs
+          }
+
           save_and_push() {
-            if git diff --quiet -- "${FILES[@]}"; then
-              echo "Новых подтверждённых данных и изменений прогнозов нет"
+            git add -- "${FILES[@]}"
+
+            if git diff --cached --quiet; then
+              echo "Новых подтверждённых данных и изменений нет"
               return 0
             fi
 
-            git add -- "${FILES[@]}"
-            git commit -m "KENO v6.2.2 · Stoloto + server predictions sync"
+            git commit -m "KENO v6.2.2 · full sync + FINGERPRINT + client build"
 
             if git push origin HEAD:main; then
-              echo "Верх и нижние прогнозы успешно сохранены вместе"
+              echo "История, прогнозы, LOGIC/ANTILOGIC и build сохранены вместе"
               return 0
             fi
 
             return 1
           }
 
-          # Первая попытка: уже получены Столото и свежие прогнозы.
           if save_and_push; then
             exit 0
           fi
 
-          echo "main изменился параллельно. Повторяем полный цикл от свежего main."
+          echo "main изменился параллельно. Пересобираем полный цикл от свежего main."
 
-          # При конфликте заново читаем Столото И заново пересчитываем нижние архивы.
           for attempt in 2 3; do
             echo "Повторная попытка ${attempt}/3"
 
             git fetch origin main
             git reset --hard origin/main
 
-            node stoloto-keno-update-v62.mjs
-            node /tmp/keno-v622-server.mjs
+            rebuild_all
 
             if save_and_push; then
               exit 0
             fi
-
-            echo "main снова изменился во время попытки ${attempt}"
           done
 
           echo "Не удалось сохранить после 3 попыток из-за параллельных обновлений" >&2
