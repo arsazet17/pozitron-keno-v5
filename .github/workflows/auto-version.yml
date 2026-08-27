@@ -1,4 +1,4 @@
-name: KENO 6.2 · AUTO INSTALL + VERSION
+name: KENO 6.2 · AUTO VERSION FINAL
 
 on:
   workflow_dispatch:
@@ -6,9 +6,15 @@ on:
     branches:
       - main
     paths:
+      - "index.html"
+      - "cluster-model-v622.js"
+      - "cluster-tracker-v622.js"
+      - "fingerprint-v622.js"
+      - "app-version-v622.js"
       - "k62-ui-patch.js"
       - "k62-ui-patch.css"
-      - "install-k62-ui-patch.mjs"
+      - "manifest.webmanifest"
+      - "fix-index-literal-newline.mjs"
       - "refresh-asset-versions.mjs"
       - ".github/workflows/auto-version.yml"
 
@@ -16,45 +22,43 @@ permissions:
   contents: write
 
 concurrency:
-  group: keno-62-auto-install-version
+  group: keno-62-auto-version-final
   cancel-in-progress: true
 
 jobs:
-  install-and-version:
+  version:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Получить актуальный main
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Node.js 22
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Автоматически подключить PATCH в index.html
-        run: node install-k62-ui-patch.mjs
+      - name: Убрать буквальный newline
+        run: node fix-index-literal-newline.mjs
 
-      - name: Автоматически обновить версии ?v=
+      - name: Пересчитать все версии
         run: node refresh-asset-versions.mjs
 
-      - name: Сохранить готовый index.html
+      - name: Сохранить index и build
         shell: bash
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- index.html; then
-            echo "index.html уже подключён и версии актуальны"
+          if git diff --quiet -- index.html version-v622.json; then
+            echo "Версии уже актуальны"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add index.html
-          git commit -m "KENO 6.2 · AUTO install UI patch + cache version"
+          git add index.html version-v622.json
+          git commit -m "KENO 6.2 · AUTO VERSION FINAL"
           git push origin HEAD:main
