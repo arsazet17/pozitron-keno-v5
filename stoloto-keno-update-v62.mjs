@@ -494,7 +494,14 @@ async function writeStatus(history,stable,fresh){
  );
 }
 
-const browser=await chromium.launch({headless:true});
+const chromePath=process.env.STOLOTO_CHROME_PATH||'';
+if(!chromePath){
+ throw new Error('FAIL: STOLOTO_CHROME_PATH не задан workflow');
+}
+const browser=await chromium.launch({
+ headless:true,
+ executablePath:chromePath
+});
 
 try{
  const context=await browser.newContext({
