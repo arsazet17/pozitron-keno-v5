@@ -1,0 +1,32 @@
+
+name: KENO 6.2 auto asset version
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'k62-ui-patch.js'
+      - 'k62-ui-patch.css'
+      - 'index.html'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node refresh-asset-versions.mjs
+      - name: Commit changed ?v=
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Auto update KENO 6.2 asset versions"
+          git push
