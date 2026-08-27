@@ -591,13 +591,12 @@ async function update(){
  const sources=[
   saved,
   './keno-history-v62.json',
-  './fingerprint-archive-next-v622.json',
-  './fingerprint-archive-minus1-v622.json',
-  './fingerprint-archive-minus2-v622.json',
   'https://raw.githubusercontent.com/arsazet17/pozitron-keno-v5/main/keno-history-v62.json',
   'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws'
  ].filter((url,index,list)=>url&&list.indexOf(url)===index);
 
+ // FINGERPRINT JSON здесь намеренно НЕ читаются:
+ // они большие и имеют свой отдельный модуль. Главная берёт факты из keno-history.
  $('status').textContent='Проверяю новые тиражи…';
 
  let totalAdded=0;
