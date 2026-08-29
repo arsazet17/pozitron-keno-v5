@@ -94,7 +94,7 @@
       horizon:h,
       records:(Array.isArray(raw?.records)?raw.records:[])
         .map(r=>normalizeRecord(r,h))
-        .filter(Bolean)
+        .filter(Boolean)
         .sort((a,b)=>a.targetDraw-b.targetDraw)
     }
   }
