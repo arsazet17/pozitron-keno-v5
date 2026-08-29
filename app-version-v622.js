@@ -61,7 +61,7 @@
     if(document.getElementById('pozitronVerticalRadarScript'))return;
     const s=document.createElement('script');
     s.id='pozitronVerticalRadarScript';
-    s.src='./vertical-radar-v624.js?v=vr624-20260829-1137-1';
+    s.src='./vertical-radar-v624.js?v=vr624-archive-cross-20260829-1244-1';
     s.async=false;
     s.onload=()=>console.log('📡 Вертикальный радар 6.2.4 загружен');
     s.onerror=()=>console.warn('Вертикальный радар временно не загрузился');

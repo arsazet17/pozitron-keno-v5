@@ -337,8 +337,8 @@
       ${(r.lanes||[]).map(l=>laneHtml(l,r,prev)).join('')}
       ${r.actual?`<div class="vr-actual"><b>Факт:</b> 📅 ${r.actual.date} · 🕒 ${r.actual.time} · №${r.actual.draw}<div class="vr-actual-nums">${chips(r.actual.balls)}</div></div>`:''}
     </div>`;
-    if(open)return `<div class="vr-record current"><div class="vr-record-head"><b>${head}</b><span>${r.status==='checked'?(total>0?`🔥 ${rub(total)}`:'✅ проверен'):'⏳ ожидает'}</span></div>${body}</div>`;
-    return `<details class="vr-record"><summary><b>${head}</b><span>${r.status==='checked'?(total>0?`🔥 ${rub(total)}`:'✅'):'⏳'}</span></summary>${body}</details>`;
+    if(open)return `<div class="vr-record current"><div class="vr-record-head"><b>${head}</b><span>${r.status==='checked'?(total>0?`🔥 ${rub(total)}`:'❌ мимо'):'⏳ ожидает'}</span></div>${body}</div>`;
+    return `<details class="vr-record"><summary><b>${head}</b><span>${r.status==='checked'?(total>0?`🔥 ${rub(total)}`:'❌'):'⏳'}</span></summary>${body}</details>`;
   }
 
   function render(){
