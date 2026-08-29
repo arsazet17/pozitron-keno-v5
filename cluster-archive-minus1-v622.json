@@ -6,7 +6,7 @@
   "title": "Через один тираж",
   "modelVersion": "1.0",
   "modelDraws": 30107,
-  "updatedAt": "2026-08-29T18:40:08.303Z",
+  "updatedAt": "2026-08-29T19:10:05.021Z",
   "records": [
     {
       "id": "2:324809",
@@ -387837,7 +387837,7 @@
       "displayStyle": "classic",
       "modelVersion": "1.0",
       "modelDraws": 30107,
-      "status": "pending",
+      "status": "checked",
       "candidates": [
         {
           "kind": "V",
@@ -387862,7 +387862,13 @@
           "archiveFullHits": 31,
           "lift": 1.8082,
           "validationLift": 2.8768,
-          "score": 5.0007
+          "score": 5.0007,
+          "outcome": {
+            "hitNumbers": [],
+            "hitCount": 0,
+            "result": "none",
+            "payout": 0
+          }
         },
         {
           "kind": "V",
@@ -387885,7 +387891,17 @@
           "archiveFullHits": 109,
           "lift": 1.2749,
           "validationLift": 1.5975,
-          "score": 3.3052
+          "score": 3.3052,
+          "outcome": {
+            "hitNumbers": [
+              16,
+              25,
+              53
+            ],
+            "hitCount": 3,
+            "result": "partial",
+            "payout": 300
+          }
         },
         {
           "kind": "V",
@@ -387910,7 +387926,15 @@
           "archiveFullHits": 28,
           "lift": 1.6382,
           "validationLift": 1.968,
-          "score": 3.0903
+          "score": 3.0903,
+          "outcome": {
+            "hitNumbers": [
+              46
+            ],
+            "hitCount": 1,
+            "result": "partial",
+            "payout": 0
+          }
         },
         {
           "kind": "H",
@@ -387931,7 +387955,17 @@
           "archiveFullHits": 29,
           "lift": 1.494,
           "validationLift": 2.2315,
-          "score": 3.3634
+          "score": 3.3634,
+          "outcome": {
+            "hitNumbers": [
+              67,
+              2,
+              45
+            ],
+            "hitCount": 3,
+            "result": "partial",
+            "payout": 400
+          }
         },
         {
           "kind": "H",
@@ -387952,7 +387986,17 @@
           "archiveFullHits": 33,
           "lift": 1.7,
           "validationLift": 1.8882,
-          "score": 3.2485
+          "score": 3.2485,
+          "outcome": {
+            "hitNumbers": [
+              2,
+              45,
+              50
+            ],
+            "hitCount": 3,
+            "result": "partial",
+            "payout": 400
+          }
         },
         {
           "kind": "H",
@@ -387972,11 +388016,48 @@
           "archiveFullHits": 124,
           "lift": 1.3449,
           "validationLift": 1.4817,
-          "score": 3.0532
+          "score": 3.0532,
+          "outcome": {
+            "hitNumbers": [],
+            "hitCount": 0,
+            "result": "none",
+            "payout": 0
+          }
         }
       ],
-      "actual": null,
-      "summary": null
+      "actual": {
+        "targetDraw": 326501,
+        "date": "29.08.26",
+        "time": "22:02",
+        "balls": [
+          45,
+          26,
+          53,
+          67,
+          76,
+          25,
+          50,
+          44,
+          65,
+          73,
+          74,
+          4,
+          39,
+          61,
+          62,
+          16,
+          79,
+          46,
+          11,
+          2
+        ]
+      },
+      "summary": {
+        "full": 0,
+        "partial": 4,
+        "none": 2,
+        "totalPayout": 1100
+      }
     },
     {
       "id": "2:326502",
@@ -388129,10 +388210,158 @@
       ],
       "actual": null,
       "summary": null
+    },
+    {
+      "id": "2:326503",
+      "horizon": 2,
+      "sourceDraw": 326501,
+      "sourceDate": "29.08.26",
+      "sourceTime": "22:02",
+      "targetDraw": 326503,
+      "createdAtDrawTime": "29.08.26 22:02",
+      "displayStyle": "classic",
+      "modelVersion": "1.0",
+      "modelDraws": 30107,
+      "status": "pending",
+      "candidates": [
+        {
+          "kind": "V",
+          "length": 5,
+          "place": 16,
+          "delay": 9,
+          "numbers": [
+            19,
+            57,
+            64,
+            15,
+            2
+          ],
+          "sourceDraws": [
+            326490,
+            326491,
+            326492,
+            326493,
+            326494
+          ],
+          "archiveChecks": 26583,
+          "archiveFullHits": 31,
+          "lift": 1.8082,
+          "validationLift": 2.8768,
+          "score": 5.0007
+        },
+        {
+          "kind": "V",
+          "length": 4,
+          "place": 18,
+          "delay": 2,
+          "numbers": [
+            56,
+            53,
+            1,
+            46
+          ],
+          "sourceDraws": [
+            326498,
+            326499,
+            326500,
+            326501
+          ],
+          "archiveChecks": 27909,
+          "archiveFullHits": 109,
+          "lift": 1.2749,
+          "validationLift": 1.5975,
+          "score": 3.3052
+        },
+        {
+          "kind": "V",
+          "length": 3,
+          "place": 2,
+          "delay": 10,
+          "numbers": [
+            30,
+            18,
+            36
+          ],
+          "sourceDraws": [
+            326491,
+            326492,
+            326493
+          ],
+          "archiveChecks": 28963,
+          "archiveFullHits": 436,
+          "lift": 1.0849,
+          "validationLift": 1.2545,
+          "score": 2.8514
+        },
+        {
+          "kind": "H",
+          "length": 5,
+          "place": 11,
+          "delay": 8,
+          "numbers": [
+            69,
+            19,
+            76,
+            77,
+            67
+          ],
+          "sourceDraws": [
+            326495
+          ],
+          "archiveChecks": 30099,
+          "archiveFullHits": 29,
+          "lift": 1.494,
+          "validationLift": 2.2315,
+          "score": 3.3634
+        },
+        {
+          "kind": "H",
+          "length": 5,
+          "place": 14,
+          "delay": 8,
+          "numbers": [
+            77,
+            67,
+            35,
+            55,
+            47
+          ],
+          "sourceDraws": [
+            326495
+          ],
+          "archiveChecks": 30099,
+          "archiveFullHits": 33,
+          "lift": 1.7,
+          "validationLift": 1.8882,
+          "score": 3.2485
+        },
+        {
+          "kind": "H",
+          "length": 4,
+          "place": 16,
+          "delay": 9,
+          "numbers": [
+            2,
+            21,
+            76,
+            75
+          ],
+          "sourceDraws": [
+            326494
+          ],
+          "archiveChecks": 30098,
+          "archiveFullHits": 124,
+          "lift": 1.3449,
+          "validationLift": 1.4817,
+          "score": 3.0532
+        }
+      ],
+      "actual": null,
+      "summary": null
     }
   ],
-  "latestHistoryDraw": 326500,
-  "recordsCount": 1694,
-  "checkedCount": 1692,
+  "latestHistoryDraw": 326501,
+  "recordsCount": 1695,
+  "checkedCount": 1693,
   "pendingCount": 2
 }
