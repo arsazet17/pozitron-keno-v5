@@ -1,0 +1,64 @@
+name: KENO 6.2 · VERTICAL RADAR SERVER
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'keno-history-v62.json'
+      - 'scripts/vertical-radar-server-v624.mjs'
+      - '.github/workflows/vertical-radar-v624-server.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-v624-vertical-radar-server
+  cancel-in-progress: false
+
+jobs:
+  vertical-radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fresh main
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+      - name: Check radar server engine
+        run: node --check scripts/vertical-radar-server-v624.mjs
+      - name: Finalize old forecast and capture next BEFORE draw
+        run: node scripts/vertical-radar-server-v624.mjs
+      - name: Commit vertical radar server state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vertical-radar-state-v624.json vertical-radar-runtime-v624.json
+          if git diff --cached --quiet; then
+            echo "No radar changes"
+            exit 0
+          fi
+          git commit -m "KENO · vertical radar server runtime"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Vertical radar runtime published"
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            git fetch origin main
+            git reset --hard origin/main
+            node scripts/vertical-radar-server-v624.mjs
+            git add vertical-radar-state-v624.json vertical-radar-runtime-v624.json
+            git commit -m "KENO · vertical radar server runtime" || true
+            [ "$attempt" -lt 3 ] && sleep 2
+          done
+          exit 1
