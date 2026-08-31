@@ -5,562 +5,8 @@
   "button": "⏳−2",
   "title": "Через два тиража",
   "method": "fingerprint-logic-antilogic",
-  "updatedAt": "2026-08-31T01:31:08.333Z",
+  "updatedAt": "2026-08-31T01:46:12.544Z",
   "records": [
-    {
-      "id": "fp:3:326288",
-      "version": "2.1-server",
-      "horizon": 3,
-      "sourceDraw": 326285,
-      "targetDraw": 326288,
-      "createdAt": "2026-08-27T01:18:50.289Z",
-      "method": "fingerprint-logic-antilogic",
-      "settings": {
-        "neighbors": 5,
-        "antiNeighbors": 5,
-        "historyWindow": 80,
-        "poolSize": 20
-      },
-      "neighbors": [
-        {
-          "targetDraw": 326224,
-          "sourceDraw": 326221,
-          "distance": 0.069907,
-          "weight": 0.204455
-        },
-        {
-          "targetDraw": 326223,
-          "sourceDraw": 326220,
-          "distance": 0.070519,
-          "weight": 0.203073
-        },
-        {
-          "targetDraw": 326251,
-          "sourceDraw": 326248,
-          "distance": 0.072679,
-          "weight": 0.19834
-        },
-        {
-          "targetDraw": 326276,
-          "sourceDraw": 326273,
-          "distance": 0.073074,
-          "weight": 0.197498
-        },
-        {
-          "targetDraw": 326285,
-          "sourceDraw": 326282,
-          "distance": 0.073484,
-          "weight": 0.196633
-        }
-      ],
-      "pool20": [
-        30,
-        15,
-        14,
-        42,
-        46,
-        31,
-        77,
-        35,
-        51,
-        57,
-        39,
-        8,
-        17,
-        22,
-        62,
-        71,
-        21,
-        63,
-        38,
-        23
-      ],
-      "combos": [
-        {
-          "id": "K3-1",
-          "size": 3,
-          "numbers": [
-            30,
-            14,
-            42
-          ],
-          "neighborCount": 3,
-          "neighborWeight": 0.599429,
-          "outcome": {
-            "hitNumbers": [],
-            "hitCount": 0,
-            "payout": 0
-          }
-        },
-        {
-          "id": "K3-2",
-          "size": 3,
-          "numbers": [
-            30,
-            31,
-            77
-          ],
-          "neighborCount": 3,
-          "neighborWeight": 0.598047,
-          "outcome": {
-            "hitNumbers": [
-              77
-            ],
-            "hitCount": 1,
-            "payout": 0
-          }
-        },
-        {
-          "id": "K4-1",
-          "size": 4,
-          "numbers": [
-            15,
-            14,
-            42,
-            46
-          ],
-          "neighborCount": 2,
-          "neighborWeight": 0.401089,
-          "outcome": {
-            "hitNumbers": [
-              46
-            ],
-            "hitCount": 1,
-            "payout": 0
-          }
-        },
-        {
-          "id": "K4-2",
-          "size": 4,
-          "numbers": [
-            30,
-            14,
-            42,
-            39
-          ],
-          "neighborCount": 2,
-          "neighborWeight": 0.402796,
-          "outcome": {
-            "hitNumbers": [],
-            "hitCount": 0,
-            "payout": 0
-          }
-        },
-        {
-          "id": "K5-1",
-          "size": 5,
-          "numbers": [
-            15,
-            14,
-            42,
-            46,
-            38
-          ],
-          "neighborCount": 2,
-          "neighborWeight": 0.401089,
-          "outcome": {
-            "hitNumbers": [
-              46
-            ],
-            "hitCount": 1,
-            "payout": 0
-          }
-        },
-        {
-          "id": "K5-2",
-          "size": 5,
-          "numbers": [
-            30,
-            14,
-            42,
-            39,
-            17
-          ],
-          "neighborCount": 2,
-          "neighborWeight": 0.402796,
-          "outcome": {
-            "hitNumbers": [
-              17
-            ],
-            "hitCount": 1,
-            "payout": 0
-          }
-        }
-      ],
-      "logic": {
-        "pool20": [
-          30,
-          15,
-          14,
-          42,
-          46,
-          31,
-          77,
-          35,
-          51,
-          57,
-          39,
-          8,
-          17,
-          22,
-          62,
-          71,
-          21,
-          63,
-          38,
-          23
-        ],
-        "combos": [
-          {
-            "id": "K3-1",
-            "size": 3,
-            "numbers": [
-              30,
-              14,
-              42
-            ],
-            "neighborCount": 3,
-            "neighborWeight": 0.599429,
-            "outcome": {
-              "hitNumbers": [],
-              "hitCount": 0,
-              "payout": 0
-            }
-          },
-          {
-            "id": "K3-2",
-            "size": 3,
-            "numbers": [
-              30,
-              31,
-              77
-            ],
-            "neighborCount": 3,
-            "neighborWeight": 0.598047,
-            "outcome": {
-              "hitNumbers": [
-                77
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          },
-          {
-            "id": "K4-1",
-            "size": 4,
-            "numbers": [
-              15,
-              14,
-              42,
-              46
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.401089,
-            "outcome": {
-              "hitNumbers": [
-                46
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          },
-          {
-            "id": "K4-2",
-            "size": 4,
-            "numbers": [
-              30,
-              14,
-              42,
-              39
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.402796,
-            "outcome": {
-              "hitNumbers": [],
-              "hitCount": 0,
-              "payout": 0
-            }
-          },
-          {
-            "id": "K5-1",
-            "size": 5,
-            "numbers": [
-              15,
-              14,
-              42,
-              46,
-              38
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.401089,
-            "outcome": {
-              "hitNumbers": [
-                46
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          },
-          {
-            "id": "K5-2",
-            "size": 5,
-            "numbers": [
-              30,
-              14,
-              42,
-              39,
-              17
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.402796,
-            "outcome": {
-              "hitNumbers": [
-                17
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          }
-        ],
-        "neighbors": [
-          {
-            "targetDraw": 326224,
-            "distance": 0.069907,
-            "weight": 0.204455
-          },
-          {
-            "targetDraw": 326223,
-            "distance": 0.070519,
-            "weight": 0.203073
-          },
-          {
-            "targetDraw": 326251,
-            "distance": 0.072679,
-            "weight": 0.19834
-          },
-          {
-            "targetDraw": 326276,
-            "distance": 0.073074,
-            "weight": 0.197498
-          },
-          {
-            "targetDraw": 326285,
-            "distance": 0.073484,
-            "weight": 0.196633
-          }
-        ]
-      },
-      "antilogic": {
-        "candidates": [
-          18,
-          73,
-          59,
-          56,
-          69,
-          75,
-          44,
-          54,
-          11,
-          65,
-          70,
-          74,
-          45,
-          16,
-          60,
-          53,
-          12,
-          10,
-          48,
-          19
-        ],
-        "combos": [
-          {
-            "id": "A-K3-1",
-            "size": 3,
-            "numbers": [
-              18,
-              56,
-              74
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.401072,
-            "outcome": {
-              "hitNumbers": [
-                74
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          },
-          {
-            "id": "A-K3-2",
-            "size": 3,
-            "numbers": [
-              18,
-              59,
-              16
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.401689,
-            "outcome": {
-              "hitNumbers": [
-                59
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          },
-          {
-            "id": "A-K4-1",
-            "size": 4,
-            "numbers": [
-              73,
-              59,
-              60,
-              10
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.401429,
-            "outcome": {
-              "hitNumbers": [
-                59
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          },
-          {
-            "id": "A-K4-2",
-            "size": 4,
-            "numbers": [
-              73,
-              59,
-              69,
-              75
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.401429,
-            "outcome": {
-              "hitNumbers": [
-                59
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          },
-          {
-            "id": "A-K5-1",
-            "size": 5,
-            "numbers": [
-              73,
-              59,
-              69,
-              60,
-              10
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.401429,
-            "outcome": {
-              "hitNumbers": [
-                59
-              ],
-              "hitCount": 1,
-              "payout": 0
-            }
-          },
-          {
-            "id": "A-K5-2",
-            "size": 5,
-            "numbers": [
-              18,
-              56,
-              11,
-              65,
-              48
-            ],
-            "neighborCount": 2,
-            "neighborWeight": 0.397921,
-            "outcome": {
-              "hitNumbers": [],
-              "hitCount": 0,
-              "payout": 0
-            }
-          }
-        ],
-        "neighbors": [
-          {
-            "targetDraw": 326229,
-            "distance": 0.075817,
-            "weight": 0.201038
-          },
-          {
-            "targetDraw": 326209,
-            "distance": 0.076002,
-            "weight": 0.20065
-          },
-          {
-            "targetDraw": 326225,
-            "distance": 0.076112,
-            "weight": 0.200422
-          },
-          {
-            "targetDraw": 326255,
-            "distance": 0.076127,
-            "weight": 0.200391
-          },
-          {
-            "targetDraw": 326278,
-            "distance": 0.077534,
-            "weight": 0.197499
-          }
-        ]
-      },
-      "actual": {
-        "targetDraw": 326288,
-        "date": "26.08.26",
-        "time": "16:32",
-        "balls": [
-          29,
-          20,
-          57,
-          37,
-          63,
-          46,
-          40,
-          74,
-          67,
-          51,
-          53,
-          77,
-          66,
-          13,
-          76,
-          43,
-          70,
-          78,
-          59,
-          17
-        ]
-      },
-      "status": "checked",
-      "summary": {
-        "poolHits": [
-          46,
-          77,
-          51,
-          57,
-          17,
-          63
-        ],
-        "poolHitCount": 6,
-        "poolPayout": 75000,
-        "logicPayout": 0,
-        "antilogicPayout": 0,
-        "comboPayout": 0,
-        "totalPayout": 75000
-      },
-      "settledAt": "2026-08-27T01:18:50.289Z"
-    },
     {
       "id": "fp:3:326289",
       "version": "2.1-server",
@@ -165597,7 +165043,14 @@
             78
           ],
           "neighborCount": 3,
-          "neighborWeight": 0.603667
+          "neighborWeight": 0.603667,
+          "outcome": {
+            "hitNumbers": [
+              32
+            ],
+            "hitCount": 1,
+            "payout": 0
+          }
         },
         {
           "id": "K3-2",
@@ -165608,7 +165061,16 @@
             4
           ],
           "neighborCount": 3,
-          "neighborWeight": 0.598041
+          "neighborWeight": 0.598041,
+          "outcome": {
+            "hitNumbers": [
+              32,
+              80,
+              4
+            ],
+            "hitCount": 3,
+            "payout": 1500
+          }
         },
         {
           "id": "K4-1",
@@ -165620,7 +165082,15 @@
             4
           ],
           "neighborCount": 2,
-          "neighborWeight": 0.401575
+          "neighborWeight": 0.401575,
+          "outcome": {
+            "hitNumbers": [
+              32,
+              4
+            ],
+            "hitCount": 2,
+            "payout": 100
+          }
         },
         {
           "id": "K4-2",
@@ -165632,7 +165102,17 @@
             45
           ],
           "neighborCount": 2,
-          "neighborWeight": 0.400578
+          "neighborWeight": 0.400578,
+          "outcome": {
+            "hitNumbers": [
+              32,
+              80,
+              4,
+              45
+            ],
+            "hitCount": 4,
+            "payout": 3300
+          }
         },
         {
           "id": "K5-1",
@@ -165645,7 +165125,15 @@
             11
           ],
           "neighborCount": 2,
-          "neighborWeight": 0.401575
+          "neighborWeight": 0.401575,
+          "outcome": {
+            "hitNumbers": [
+              32,
+              4
+            ],
+            "hitCount": 2,
+            "payout": 0
+          }
         },
         {
           "id": "K5-2",
@@ -165658,7 +165146,17 @@
             68
           ],
           "neighborCount": 2,
-          "neighborWeight": 0.400578
+          "neighborWeight": 0.400578,
+          "outcome": {
+            "hitNumbers": [
+              32,
+              80,
+              4,
+              45
+            ],
+            "hitCount": 4,
+            "payout": 1920
+          }
         }
       ],
       "logic": {
@@ -165694,7 +165192,14 @@
               78
             ],
             "neighborCount": 3,
-            "neighborWeight": 0.603667
+            "neighborWeight": 0.603667,
+            "outcome": {
+              "hitNumbers": [
+                32
+              ],
+              "hitCount": 1,
+              "payout": 0
+            }
           },
           {
             "id": "K3-2",
@@ -165705,7 +165210,16 @@
               4
             ],
             "neighborCount": 3,
-            "neighborWeight": 0.598041
+            "neighborWeight": 0.598041,
+            "outcome": {
+              "hitNumbers": [
+                32,
+                80,
+                4
+              ],
+              "hitCount": 3,
+              "payout": 1500
+            }
           },
           {
             "id": "K4-1",
@@ -165717,7 +165231,15 @@
               4
             ],
             "neighborCount": 2,
-            "neighborWeight": 0.401575
+            "neighborWeight": 0.401575,
+            "outcome": {
+              "hitNumbers": [
+                32,
+                4
+              ],
+              "hitCount": 2,
+              "payout": 100
+            }
           },
           {
             "id": "K4-2",
@@ -165729,7 +165251,17 @@
               45
             ],
             "neighborCount": 2,
-            "neighborWeight": 0.400578
+            "neighborWeight": 0.400578,
+            "outcome": {
+              "hitNumbers": [
+                32,
+                80,
+                4,
+                45
+              ],
+              "hitCount": 4,
+              "payout": 3300
+            }
           },
           {
             "id": "K5-1",
@@ -165742,7 +165274,15 @@
               11
             ],
             "neighborCount": 2,
-            "neighborWeight": 0.401575
+            "neighborWeight": 0.401575,
+            "outcome": {
+              "hitNumbers": [
+                32,
+                4
+              ],
+              "hitCount": 2,
+              "payout": 0
+            }
           },
           {
             "id": "K5-2",
@@ -165755,7 +165295,17 @@
               68
             ],
             "neighborCount": 2,
-            "neighborWeight": 0.400578
+            "neighborWeight": 0.400578,
+            "outcome": {
+              "hitNumbers": [
+                32,
+                80,
+                4,
+                45
+              ],
+              "hitCount": 4,
+              "payout": 1920
+            }
           }
         ],
         "neighbors": [
@@ -165819,7 +165369,14 @@
               79
             ],
             "neighborCount": 4,
-            "neighborWeight": 0.800439
+            "neighborWeight": 0.800439,
+            "outcome": {
+              "hitNumbers": [
+                12
+              ],
+              "hitCount": 1,
+              "payout": 0
+            }
           },
           {
             "id": "A-K3-2",
@@ -165830,7 +165387,15 @@
               29
             ],
             "neighborCount": 3,
-            "neighborWeight": 0.601268
+            "neighborWeight": 0.601268,
+            "outcome": {
+              "hitNumbers": [
+                12,
+                29
+              ],
+              "hitCount": 2,
+              "payout": 300
+            }
           },
           {
             "id": "A-K4-1",
@@ -165842,7 +165407,15 @@
               29
             ],
             "neighborCount": 3,
-            "neighborWeight": 0.601268
+            "neighborWeight": 0.601268,
+            "outcome": {
+              "hitNumbers": [
+                12,
+                29
+              ],
+              "hitCount": 2,
+              "payout": 100
+            }
           },
           {
             "id": "A-K4-2",
@@ -165854,7 +165427,14 @@
               66
             ],
             "neighborCount": 4,
-            "neighborWeight": 0.800439
+            "neighborWeight": 0.800439,
+            "outcome": {
+              "hitNumbers": [
+                12
+              ],
+              "hitCount": 1,
+              "payout": 0
+            }
           },
           {
             "id": "A-K5-1",
@@ -165867,7 +165447,15 @@
               29
             ],
             "neighborCount": 3,
-            "neighborWeight": 0.601268
+            "neighborWeight": 0.601268,
+            "outcome": {
+              "hitNumbers": [
+                12,
+                29
+              ],
+              "hitCount": 2,
+              "payout": 0
+            }
           },
           {
             "id": "A-K5-2",
@@ -165880,7 +165468,16 @@
               71
             ],
             "neighborCount": 2,
-            "neighborWeight": 0.398602
+            "neighborWeight": 0.398602,
+            "outcome": {
+              "hitNumbers": [
+                50,
+                1,
+                71
+              ],
+              "hitCount": 3,
+              "payout": 400
+            }
           }
         ],
         "neighbors": [
@@ -165911,9 +165508,51 @@
           }
         ]
       },
-      "actual": null,
-      "status": "pending",
-      "summary": null
+      "actual": {
+        "targetDraw": 326585,
+        "date": "31.08.26",
+        "time": "04:32",
+        "balls": [
+          12,
+          80,
+          4,
+          52,
+          1,
+          63,
+          10,
+          32,
+          55,
+          29,
+          71,
+          50,
+          70,
+          19,
+          59,
+          45,
+          2,
+          15,
+          40,
+          27
+        ]
+      },
+      "status": "checked",
+      "summary": {
+        "poolHits": [
+          32,
+          80,
+          4,
+          70,
+          45,
+          27
+        ],
+        "poolHitCount": 6,
+        "poolPayout": 75000,
+        "logicPayout": 6820,
+        "antilogicPayout": 800,
+        "comboPayout": 6820,
+        "totalPayout": 82620
+      },
+      "settledAt": "2026-08-31T01:46:12.527Z"
     },
     {
       "id": "fp:3:326586",
@@ -166706,9 +166345,405 @@
       "actual": null,
       "status": "pending",
       "summary": null
+    },
+    {
+      "id": "fp:3:326588",
+      "version": "2.1-server",
+      "horizon": 3,
+      "sourceDraw": 326585,
+      "targetDraw": 326588,
+      "createdAt": "2026-08-31T01:46:12.527Z",
+      "method": "fingerprint-logic-antilogic",
+      "settings": {
+        "neighbors": 5,
+        "antiNeighbors": 5,
+        "historyWindow": 80,
+        "poolSize": 20
+      },
+      "neighbors": [
+        {
+          "targetDraw": 326585,
+          "sourceDraw": 326582,
+          "distance": 0.06134,
+          "weight": 0.222382
+        },
+        {
+          "targetDraw": 326560,
+          "sourceDraw": 326557,
+          "distance": 0.071027,
+          "weight": 0.198718
+        },
+        {
+          "targetDraw": 326526,
+          "sourceDraw": 326523,
+          "distance": 0.073293,
+          "weight": 0.193891
+        },
+        {
+          "targetDraw": 326584,
+          "sourceDraw": 326581,
+          "distance": 0.073961,
+          "weight": 0.192512
+        },
+        {
+          "targetDraw": 326527,
+          "sourceDraw": 326524,
+          "distance": 0.073968,
+          "weight": 0.192497
+        }
+      ],
+      "pool20": [
+        32,
+        50,
+        27,
+        59,
+        71,
+        61,
+        39,
+        46,
+        38,
+        70,
+        10,
+        40,
+        12,
+        55,
+        1,
+        19,
+        60,
+        67,
+        74,
+        79
+      ],
+      "combos": [
+        {
+          "id": "K3-1",
+          "size": 3,
+          "numbers": [
+            32,
+            27,
+            59
+          ],
+          "neighborCount": 3,
+          "neighborWeight": 0.60877
+        },
+        {
+          "id": "K3-2",
+          "size": 3,
+          "numbers": [
+            32,
+            61,
+            46
+          ],
+          "neighborCount": 3,
+          "neighborWeight": 0.585106
+        },
+        {
+          "id": "K4-1",
+          "size": 4,
+          "numbers": [
+            32,
+            50,
+            27,
+            59
+          ],
+          "neighborCount": 3,
+          "neighborWeight": 0.60877
+        },
+        {
+          "id": "K4-2",
+          "size": 4,
+          "numbers": [
+            32,
+            27,
+            71,
+            1
+          ],
+          "neighborCount": 2,
+          "neighborWeight": 0.414879
+        },
+        {
+          "id": "K5-1",
+          "size": 5,
+          "numbers": [
+            32,
+            27,
+            59,
+            71,
+            1
+          ],
+          "neighborCount": 2,
+          "neighborWeight": 0.414879
+        },
+        {
+          "id": "K5-2",
+          "size": 5,
+          "numbers": [
+            32,
+            61,
+            39,
+            46,
+            60
+          ],
+          "neighborCount": 2,
+          "neighborWeight": 0.392609
+        }
+      ],
+      "logic": {
+        "pool20": [
+          32,
+          50,
+          27,
+          59,
+          71,
+          61,
+          39,
+          46,
+          38,
+          70,
+          10,
+          40,
+          12,
+          55,
+          1,
+          19,
+          60,
+          67,
+          74,
+          79
+        ],
+        "combos": [
+          {
+            "id": "K3-1",
+            "size": 3,
+            "numbers": [
+              32,
+              27,
+              59
+            ],
+            "neighborCount": 3,
+            "neighborWeight": 0.60877
+          },
+          {
+            "id": "K3-2",
+            "size": 3,
+            "numbers": [
+              32,
+              61,
+              46
+            ],
+            "neighborCount": 3,
+            "neighborWeight": 0.585106
+          },
+          {
+            "id": "K4-1",
+            "size": 4,
+            "numbers": [
+              32,
+              50,
+              27,
+              59
+            ],
+            "neighborCount": 3,
+            "neighborWeight": 0.60877
+          },
+          {
+            "id": "K4-2",
+            "size": 4,
+            "numbers": [
+              32,
+              27,
+              71,
+              1
+            ],
+            "neighborCount": 2,
+            "neighborWeight": 0.414879
+          },
+          {
+            "id": "K5-1",
+            "size": 5,
+            "numbers": [
+              32,
+              27,
+              59,
+              71,
+              1
+            ],
+            "neighborCount": 2,
+            "neighborWeight": 0.414879
+          },
+          {
+            "id": "K5-2",
+            "size": 5,
+            "numbers": [
+              32,
+              61,
+              39,
+              46,
+              60
+            ],
+            "neighborCount": 2,
+            "neighborWeight": 0.392609
+          }
+        ],
+        "neighbors": [
+          {
+            "targetDraw": 326585,
+            "distance": 0.06134,
+            "weight": 0.222382
+          },
+          {
+            "targetDraw": 326560,
+            "distance": 0.071027,
+            "weight": 0.198718
+          },
+          {
+            "targetDraw": 326526,
+            "distance": 0.073293,
+            "weight": 0.193891
+          },
+          {
+            "targetDraw": 326584,
+            "distance": 0.073961,
+            "weight": 0.192512
+          },
+          {
+            "targetDraw": 326527,
+            "distance": 0.073968,
+            "weight": 0.192497
+          }
+        ]
+      },
+      "antilogic": {
+        "candidates": [
+          9,
+          66,
+          31,
+          16,
+          52,
+          47,
+          65,
+          42,
+          24,
+          41,
+          53,
+          43,
+          44,
+          62,
+          68,
+          7,
+          29,
+          48,
+          69,
+          6
+        ],
+        "combos": [
+          {
+            "id": "A-K3-1",
+            "size": 3,
+            "numbers": [
+              9,
+              31,
+              16
+            ],
+            "neighborCount": 3,
+            "neighborWeight": 0.599716
+          },
+          {
+            "id": "A-K3-2",
+            "size": 3,
+            "numbers": [
+              9,
+              66,
+              52
+            ],
+            "neighborCount": 3,
+            "neighborWeight": 0.598921
+          },
+          {
+            "id": "A-K4-1",
+            "size": 4,
+            "numbers": [
+              9,
+              31,
+              16,
+              52
+            ],
+            "neighborCount": 3,
+            "neighborWeight": 0.599716
+          },
+          {
+            "id": "A-K4-2",
+            "size": 4,
+            "numbers": [
+              9,
+              66,
+              52,
+              53
+            ],
+            "neighborCount": 3,
+            "neighborWeight": 0.598921
+          },
+          {
+            "id": "A-K5-1",
+            "size": 5,
+            "numbers": [
+              9,
+              66,
+              31,
+              16,
+              52
+            ],
+            "neighborCount": 2,
+            "neighborWeight": 0.399718
+          },
+          {
+            "id": "A-K5-2",
+            "size": 5,
+            "numbers": [
+              9,
+              47,
+              41,
+              43,
+              44
+            ],
+            "neighborCount": 2,
+            "neighborWeight": 0.401079
+          }
+        ],
+        "neighbors": [
+          {
+            "targetDraw": 326537,
+            "distance": 0.076697,
+            "weight": 0.201081
+          },
+          {
+            "targetDraw": 326552,
+            "distance": 0.07722,
+            "weight": 0.199998
+          },
+          {
+            "targetDraw": 326551,
+            "distance": 0.077246,
+            "weight": 0.199945
+          },
+          {
+            "targetDraw": 326544,
+            "distance": 0.07733,
+            "weight": 0.199772
+          },
+          {
+            "targetDraw": 326565,
+            "distance": 0.077608,
+            "weight": 0.199203
+          }
+        ]
+      },
+      "actual": null,
+      "status": "pending",
+      "summary": null
     }
   ],
-  "latestHistoryDraw": 326584,
+  "latestHistoryDraw": 326585,
   "recordsCount": 300,
   "checkedCount": 297,
   "pendingCount": 3
