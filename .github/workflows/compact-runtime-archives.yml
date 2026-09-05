@@ -1,0 +1,90 @@
+name: KENO · COMPACT RUNTIME ARCHIVES
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/compact-runtime-archives.mjs'
+      - '.github/workflows/compact-runtime-archives.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: keno-compact-runtime-archives
+  cancel-in-progress: true
+
+jobs:
+  compact:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Проверить наличие скрипта
+        id: ready
+        shell: bash
+        run: |
+          if [ -f scripts/compact-runtime-archives.mjs ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "Ожидаю загрузку scripts/compact-runtime-archives.mjs"
+          fi
+
+      - name: Проверить и компактировать рабочие архивы
+        if: steps.ready.outputs.value == 'true'
+        run: |
+          node --check scripts/compact-runtime-archives.mjs
+          node scripts/compact-runtime-archives.mjs
+
+      - name: Сохранить компактные снимки
+        if: steps.ready.outputs.value == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          FILES=(
+            cluster-archive-next-v622.json
+            cluster-archive-minus1-v622.json
+            cluster-archive-minus2-v622.json
+            fingerprint-archive-next-v622.json
+            fingerprint-archive-minus1-v622.json
+            fingerprint-archive-minus2-v622.json
+            vertical-radar-state-v624.json
+            vertical-radar-runtime-v624.json
+          )
+          git add -- "${FILES[@]}"
+
+          if git diff --cached --quiet; then
+            echo "Архивы уже компактны"
+            exit 0
+          fi
+
+          git commit -m "KENO · compact runtime snapshots"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Компактные снимки опубликованы"
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            git fetch origin main
+            git reset --hard origin/main
+            node scripts/compact-runtime-archives.mjs
+            git add -- "${FILES[@]}"
+            git commit -m "KENO · compact runtime snapshots" || true
+            [ "$attempt" -lt 3 ] && sleep 2
+          done
+          exit 1

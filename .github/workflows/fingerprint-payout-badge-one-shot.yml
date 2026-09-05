@@ -1,127 +1,14 @@
-name: FINGERPRINT · PAYOUT BADGE · ONE SHOT
+name: KENO · LEGACY ONE-SHOT DISABLED
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch:
+  notice:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: main
-
-      - name: Patch current fingerprint-v622.js
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          python - <<'PY'
-          from pathlib import Path
-
-          p = Path("fingerprint-v622.js")
-          if not p.exists():
-              raise SystemExit("fingerprint-v622.js not found")
-
-          s = p.read_text(encoding="utf-8")
-
-          helper_anchor = "  const payoutFor=(s,g)=>Number(KENO_PAYOUTS[num(s)]?.[num(g)]||0);\n"
-          helper = """  const payoutFor=(s,g)=>Number(KENO_PAYOUTS[num(s)]?.[num(g)]||0);
-
-  function recordComboPayout(record,isAnti){
-    const actual=record?.actual;
-    if(!actual?.balls?.length)return 0;
-    const block=isAnti?record.antilogic:record.logic;
-    return (block?.combos||[]).reduce(
-      (sum,c)=>sum+payoutFor(c.size,hitSet(c.numbers,actual).size),0
-    );
-  }
-"""
-          if "function recordComboPayout(record,isAnti)" not in s:
-              if helper_anchor not in s:
-                  raise SystemExit("helper anchor not found")
-              s = s.replace(helper_anchor, helper, 1)
-
-          old_calc = """    const modeCount=modeHits?modeHits.size:0;
-    const modeLabel=isAnti?'ANTILOGIC':'LOGIC';
-
-    const body=`<div class="fp-head">"""
-          new_calc = """    const modeCount=modeHits?modeHits.size:0;
-    const modeLabel=isAnti?'ANTILOGIC':'LOGIC';
-    const summaryPayout=actual?recordComboPayout(record,isAnti):0;
-
-    const body=`<div class="fp-head">"""
-          if "const summaryPayout=actual?recordComboPayout(record,isAnti):0;" not in s:
-              if old_calc not in s:
-                  raise SystemExit("forecast payout anchor not found")
-              s = s.replace(old_calc, new_calc, 1)
-
-          old_summary = """    return`<details class="fp-record" data-fp-id="${record.id}">
-      <summary><b>${META[record.horizon]?.button} №${record.targetDraw}</b>
-      <span>${actual?`${modeLabel} ${modeCount}/20`:'⏳'}</span></summary>
-      ${body}
-    </details>`"""
-          new_summary = """    return`<details class="fp-record" data-fp-id="${record.id}">
-      <summary>
-        <b>${META[record.horizon]?.button} №${record.targetDraw}</b>
-        <span class="fp-summary-prize">${actual&&summaryPayout>0?`🔥 ${rubles(summaryPayout)}`:''}</span>
-        <span class="fp-summary-score">${actual?`${modeLabel} ${modeCount}/20`:'⏳'}</span>
-      </summary>
-      ${body}
-    </details>`"""
-          if 'class="fp-summary-prize"' not in s:
-              if old_summary not in s:
-                  raise SystemExit("collapsed summary anchor not found")
-              s = s.replace(old_summary, new_summary, 1)
-
-          css_anchor = ".fp-head span,.fp-record>summary span{color:#8eedaa;font-weight:900}\n"
-          css_new = """.fp-head span,.fp-record>summary span{color:#8eedaa;font-weight:900}
-.fp-record>summary{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px}
-.fp-summary-prize{justify-self:center;color:#ffad42!important;font-weight:950!important;white-space:nowrap}
-.fp-summary-score{justify-self:end;white-space:nowrap}
-"""
-          if ".fp-summary-prize{" not in s:
-              if css_anchor not in s:
-                  raise SystemExit("CSS anchor not found")
-              s = s.replace(css_anchor, css_new, 1)
-
-          p.write_text(s, encoding="utf-8")
-          print("PATCH PASS")
-          PY
-
-      - name: JS syntax check
-        run: node --check fingerprint-v622.js
-
-      - name: Verify payout badge
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -q "function recordComboPayout(record,isAnti)" fingerprint-v622.js
-          grep -q 'class="fp-summary-prize"' fingerprint-v622.js
-          grep -q "summaryPayout=actual?recordComboPayout" fingerprint-v622.js
-          echo "VERIFY PASS"
-
-      - name: Commit patched fingerprint and remove one-shot workflow
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git rm -f .github/workflows/fingerprint-payout-badge-one-shot.yml
-          git add fingerprint-v622.js
-
-          if git diff --cached --quiet; then
-            echo "No changes"
-            exit 0
-          fi
-
-          git commit -m "FINGERPRINT · payout badge in LOGIC/ANTILOGIC archive"
-          git pull --rebase origin main
-          git push origin HEAD:main
+      - name: Старое одноразовое исправление отключено
+        run: echo "Исправление уже встроено; workflow ничего не изменяет"

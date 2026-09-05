@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: keno-v622-stoloto
@@ -19,7 +20,7 @@ jobs:
       - name: Получить файлы репозитория
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: main
 
       - name: Синхронизировать актуальный main
@@ -133,92 +134,13 @@ jobs:
           echo "Не удалось быстро опубликовать новый факт" >&2
           exit 1
 
-      - name: Синхронизировать main после FAST FACT
-        if: steps.fresh.outputs.has_new == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git reset --hard origin/main
-
-      # Только после публикации факта — прогнозный движок.
-      - name: Подготовить движок нижних прогнозов
-        if: steps.fresh.outputs.has_new == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          import textwrap
-
-          workflow = Path('.github/workflows/keno-v622-server.yml')
-          if not workflow.exists():
-              raise SystemExit('Нет .github/workflows/keno-v622-server.yml')
-
-          text = workflow.read_text(encoding='utf-8')
-          match = re.search(
-              r"(?ms)^[ \t]*cat > /tmp/keno-v622-server\.mjs <<'NODE'[ \t]*\n(.*?)^[ \t]*NODE[ \t]*$",
-              text,
-          )
-          if not match:
-              raise SystemExit('Не найден встроенный движок keno-v622-server.mjs')
-
-          code = textwrap.dedent(match.group(1)).strip('\n') + '\n'
-          Path('/tmp/keno-v622-server.mjs').write_text(code, encoding='utf-8')
-          PY
-          node --check /tmp/keno-v622-server.mjs
-
-      - name: Пересчитать 🎯 / −1 / −2
-        if: steps.fresh.outputs.has_new == 'true'
-        run: node /tmp/keno-v622-server.mjs
-
-      - name: Пересчитать FINGERPRINT · LOGIC / ANTILOGIC
-        if: steps.fresh.outputs.has_new == 'true'
-        run: node scripts/fingerprint-v622-server.mjs
-
-      - name: Обновить текущий client build
+      - name: Отдельно запустить тяжёлые модели
         if: steps.fresh.outputs.has_new == 'true'
         env:
-          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-        run: node scripts/bump-client-version-v622.mjs
-
-      - name: Сохранить прогнозы и FINGERPRINT вторым обновлением
-        if: steps.fresh.outputs.has_new == 'true'
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          FILES=(
-            cluster-archive-next-v622.json
-            cluster-archive-minus1-v622.json
-            cluster-archive-minus2-v622.json
-            fingerprint-archive-next-v622.json
-            fingerprint-archive-minus1-v622.json
-            fingerprint-archive-minus2-v622.json
-            index.html
-            version-v622.json
-          )
-
-          git add -- "${FILES[@]}"
-
-          if git diff --cached --quiet; then
-            echo "После FAST FACT дополнительных изменений нет"
-            exit 0
-          fi
-
-          git commit -m "KENO · прогнозы + FINGERPRINT после FAST FACT"
-
-          for attempt in 1 2 3; do
-            if git pull --rebase origin main && git push origin HEAD:main; then
-              echo "Прогнозы опубликованы"
-              exit 0
-            fi
-            [ "$attempt" -lt 3 ] && sleep 2
-          done
-
-          echo "ФАКТ уже опубликован, но прогнозы не сохранились" >&2
-          exit 1
+          gh workflow run keno-v622-server.yml --ref main
+          gh workflow run vertical-radar-v624-server.yml --ref main
+          echo "ФАКТ опубликован; тяжёлые модели запущены отдельно"

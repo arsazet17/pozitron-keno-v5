@@ -1,4 +1,4 @@
-name: KENO 6.2.4 · FIX REFRESH BUILD
+name: KENO · MANUAL REFRESH BUILD
 
 on:
   workflow_dispatch:
@@ -7,111 +7,42 @@ permissions:
   contents: write
 
 concurrency:
-  group: keno-v624-fix-refresh-build
-  cancel-in-progress: false
+  group: keno-manual-refresh-build
+  cancel-in-progress: true
 
 jobs:
-  fix:
+  refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: main
 
-      - name: Sync main
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git reset --hard origin/main
-
-      - name: Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '22'
 
-      - name: Fix FINGERPRINT and force new client build
-        env:
-          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Синхронизировать build из единой версии
+        run: |
+          node --check refresh-asset-versions.mjs
+          node refresh-asset-versions.mjs
+
+      - name: Сохранить build без изменения номера версии
         shell: bash
         run: |
           set -euo pipefail
-          node <<'NODE'
-          const fs=require('fs');
-
-          const build=String(process.env.BUILD_ID || Date.now());
-          const now=new Date().toISOString();
-
-          let fp=fs.readFileSync('fingerprint-v622.js','utf8');
-          fp=fp.replaceAll('.filter(Bolean)', '.filter(Boolean)');
-          fs.writeFileSync('fingerprint-v622.js',fp,'utf8');
-
-          let html=fs.readFileSync('index.html','utf8');
-
-          const assets=[
-            'cluster-model-v622.js',
-            'cluster-tracker-v622.js',
-            'fingerprint-v622.js',
-            'app-version-v622.js',
-            'manifest.webmanifest'
-          ];
-
-          for(const file of assets){
-            const esc=file.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-            const re=new RegExp(`(${esc})(?:\\?v=[^"'<>\\s]*)?`,'g');
-            html=html.replace(re, `$1?v=${build}`);
-          }
-
-          if(!/http-equiv=["']Cache-Control["']/i.test(html)){
-            html=html.replace(
-              '<head>',
-              `<head>
-          <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-          <meta http-equiv="Pragma" content="no-cache">
-          <meta http-equiv="Expires" content="0">`
-            );
-          }
-
-          fs.writeFileSync('index.html',html,'utf8');
-
-          const version={
-            app:'KENO 6.2.4',
-            build,
-            updatedAt:now,
-            runId:process.env.GITHUB_RUN_ID || null,
-            runAttempt:process.env.GITHUB_RUN_ATTEMPT || null,
-            sha:process.env.GITHUB_SHA || null
-          };
-          fs.writeFileSync('version-v622.json',JSON.stringify(version,null,2)+'\n','utf8');
-
-          console.log('NEW CLIENT BUILD',build);
-          NODE
-
-      - name: Commit and push
-        shell: bash
-        run: |
-          set -euo pipefail
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add \
-            fingerprint-v622.js \
-            index.html \
-            version-v622.json
+          git add index.html version-v622.json manifest.webmanifest
 
           if git diff --cached --quiet; then
-            echo "Нет изменений"
+            echo "Build уже актуален"
             exit 0
           fi
 
-          git commit -m "KENO 6.2.4: force fresh FINGERPRINT client build"
-
-          if git push origin HEAD:main; then
-            exit 0
-          fi
-
+          git commit -m "KENO · refresh client build"
           git pull --rebase origin main
           git push origin HEAD:main

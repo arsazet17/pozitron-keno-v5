@@ -2,11 +2,10 @@ name: KENO 6.2 · VERTICAL RADAR SERVER
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - "KENO v6.2 · Stoloto MAIN · FAST FACT CHROME"
-    types:
-      - completed
+  push:
+    branches: [main]
+    paths:
+      - 'keno-history-v62.json'
 
 permissions:
   contents: write
@@ -17,14 +16,13 @@ concurrency:
 
 jobs:
   vertical-radar:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: main
 
       - uses: actions/setup-node@v4

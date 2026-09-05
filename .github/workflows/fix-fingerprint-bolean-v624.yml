@@ -1,4 +1,4 @@
-name: KENO 6.2.4 · FIX FINGERPRINT BOLEAN
+name: KENO · FIX FINGERPRINT BOOLEAN
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: main
 
       - name: Sync main
@@ -32,8 +32,10 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Fix Bolean and bump fingerprint ?v=
-        run: node scripts/fix-bolean-v624.mjs
+      - name: Исправить Boolean и синхронизировать build
+        run: |
+          node scripts/fix-bolean-v624.mjs
+          node refresh-asset-versions.mjs
 
       - name: Commit fix
         shell: bash
@@ -43,7 +45,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add fingerprint-v622.js index.html
+          git add fingerprint-v622.js index.html version-v622.json manifest.webmanifest
 
           if git diff --cached --quiet; then
             echo "Исправление уже применено"

@@ -10,9 +10,19 @@ on:
       - "cluster-model-v622.js"
       - "cluster-tracker-v622.js"
       - "fingerprint-v622.js"
+      - "vertical-radar-v624.js"
       - "app-version-v622.js"
       - "manifest.webmanifest"
+      - "version-v622.json"
       - "refresh-asset-versions.mjs"
+      - "stoloto-keno-update-v62.mjs"
+      - "scripts/**"
+      - ".github/workflows/stoloto-v622-main.yml"
+      - ".github/workflows/stoloto-v622-reserve.yml"
+      - ".github/workflows/keno-v622-server.yml"
+      - ".github/workflows/fingerprint-v622-server.yml"
+      - ".github/workflows/vertical-radar-v624-server.yml"
+      - ".github/workflows/compact-runtime-archives.yml"
       - ".github/workflows/auto-version.yml"
 
 permissions:
@@ -31,24 +41,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
+      - name: Проверить единый источник версии
+        id: canonical
+        shell: bash
+        run: |
+          if node -e "const v=require('./version-v622.json'); process.exit(/^\d+\.\d+\.\d+$/.test(String(v.version||''))?0:1)"; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Ожидаю загрузку нового version-v622.json; старую схему не изменяю"
+          fi
+
       - name: Проверить JS
+        if: steps.canonical.outputs.ready == 'true'
         run: |
           node --check fingerprint-v622.js
           node --check app-version-v622.js
           node --check cluster-model-v622.js
           node --check cluster-tracker-v622.js
+          node --check vertical-radar-v624.js
           node --check refresh-asset-versions.mjs
 
-      - name: Поднять версию и пересчитать build
+      - name: Синхронизировать версию и пересчитать build
+        if: steps.canonical.outputs.ready == 'true'
         run: node refresh-asset-versions.mjs
 
       - name: Сохранить новую версию
+        if: steps.canonical.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -64,4 +89,11 @@ jobs:
           fi
 
           git commit -m "KENO · AUTO VERSION"
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              echo "Версия опубликована"
+              exit 0
+            fi
+            [ "$attempt" -lt 3 ] && sleep 2
+          done
+          exit 1

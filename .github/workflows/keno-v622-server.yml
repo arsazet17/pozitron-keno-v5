@@ -1,4 +1,4 @@
-name: KENO v6.2.2 server predictions
+name: KENO · HEAVY CLUSTER MODELS
 
 on:
   workflow_dispatch:
@@ -7,7 +7,6 @@ on:
     paths:
       - 'keno-history-v62.json'
       - 'cluster-model-v622.js'
-      - '.github/workflows/keno-v622-server.yml'
 
 permissions:
   contents: write
@@ -23,7 +22,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -43,6 +42,8 @@ jobs:
           const ROOT = process.cwd();
           const HISTORY_FILE = path.join(ROOT, 'keno-history-v62.json');
           const MODEL_FILE = path.join(ROOT, 'cluster-model-v622.js');
+          const VERSION_FILE = path.join(ROOT, 'version-v622.json');
+          const RETAIN_CHECKED = 180;
 
           const ARCHIVES = {
             1: path.join(ROOT, 'cluster-archive-next-v622.json'),
@@ -80,6 +81,8 @@ jobs:
           function writeJson(file, value) {
             fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8');
           }
+
+          const APP_VERSION = String(readJson(VERSION_FILE, {}).version || '6.2');
 
           function loadModel() {
             const text = fs.readFileSync(MODEL_FILE, 'utf8');
@@ -244,7 +247,7 @@ jobs:
             const records = Array.isArray(raw?.records) ? raw.records : [];
             return {
               version: '2.0-server',
-              appVersion: '6.2.2',
+              appVersion: APP_VERSION,
               horizon,
               button: HORIZON_META[horizon].button,
               title: HORIZON_META[horizon].title,
@@ -289,7 +292,8 @@ jobs:
             const byId = new Map(archive.records.map(r => [String(r.id), r]));
             const actualByDraw = new Map(list.map(d => [Number(d.draw), d]));
 
-            for (let sourceIndex = 14; sourceIndex < list.length; sourceIndex += 1) {
+            const firstSourceIndex = Math.max(14, list.length - RETAIN_CHECKED - 24);
+            for (let sourceIndex = firstSourceIndex; sourceIndex < list.length; sourceIndex += 1) {
               const source = list[sourceIndex];
               const targetDraw = Number(source.draw) + horizon;
               const id = recordId(horizon, targetDraw);
@@ -305,11 +309,16 @@ jobs:
               if (actual) byId.set(id, evaluateRecord(record, actual));
             }
 
-            archive.records = [...byId.values()].sort((a, b) => Number(a.targetDraw) - Number(b.targetDraw));
+            const ordered = [...byId.values()].sort((a, b) => Number(a.targetDraw) - Number(b.targetDraw));
+            const checkedRecords = ordered.filter(r => r.status === 'checked').slice(-RETAIN_CHECKED);
+            const pendingRecords = ordered.filter(r => r.status !== 'checked');
+            archive.records = [...checkedRecords, ...pendingRecords]
+              .sort((a, b) => Number(a.targetDraw) - Number(b.targetDraw));
             archive.latestHistoryDraw = Number(list.at(-1)?.draw || 0);
             archive.recordsCount = archive.records.length;
             archive.checkedCount = archive.records.filter(r => r.status === 'checked').length;
             archive.pendingCount = archive.records.filter(r => r.status !== 'checked').length;
+            archive.retention = { checkedRecords: RETAIN_CHECKED, mode: 'compact-snapshot' };
 
             const changed =
               JSON.stringify(originalRaw?.records || []) !== JSON.stringify(archive.records) ||
@@ -317,7 +326,9 @@ jobs:
               String(originalRaw?.version || '') !== archive.version ||
               String(originalRaw?.modelVersion || '') !== archive.modelVersion ||
               Number(originalRaw?.modelDraws || 0) !== archive.modelDraws ||
-              Number(originalRaw?.horizon || 0) !== archive.horizon;
+              Number(originalRaw?.horizon || 0) !== archive.horizon ||
+              String(originalRaw?.appVersion || '') !== archive.appVersion ||
+              Number(originalRaw?.retention?.checkedRecords || 0) !== RETAIN_CHECKED;
 
             archive.updatedAt = changed ? new Date().toISOString() : (originalRaw?.updatedAt || null);
             if (changed || !fs.existsSync(file)) writeJson(file, archive);
@@ -333,7 +344,7 @@ jobs:
 
             for (const horizon of [1, 2, 3]) updateHorizon(list, model, horizon);
 
-            console.log(`KENO v6.2.2: обработано ${list.length} серверных тиражей, последний №${list.at(-1).draw}`);
+            console.log(`KENO ${APP_VERSION}: обработано ${list.length} серверных тиражей, последний №${list.at(-1).draw}`);
             for (const horizon of [1, 2, 3]) {
               const archive = readJson(ARCHIVES[horizon], {});
               console.log(`${HORIZON_META[horizon].button}: ${archive.recordsCount || 0} записей, проверено ${archive.checkedCount || 0}, ожидает ${archive.pendingCount || 0}`);
@@ -363,7 +374,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Auto-update KENO v6.2.2 server predictions"
+          git commit -m "KENO · update heavy cluster models"
 
           if git push origin HEAD:main; then
             exit 0
