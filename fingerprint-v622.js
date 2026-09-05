@@ -1,5 +1,5 @@
 'use strict';
-/* ПОЗИТРОН КЕНО v6.2.2 — FINGERPRINT CLEAN */
+/* ПОЗИТРОН КЕНО — FINGERPRINT CLEAN */
 (() => {
   const VERSION='3.0.0';
   const META={1:{button:'🎯'},2:{button:'⏳−1'},3:{button:'⏳−2'}};

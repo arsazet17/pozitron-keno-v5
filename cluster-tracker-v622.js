@@ -129,7 +129,7 @@
       lastSyncAt = Date.now();
       if (byId('clusterPanel')?.classList.contains('show')) renderPanel(activeHorizon);
     } catch (error) {
-      console.warn('KENO v6.2.2: серверные архивы временно недоступны', error);
+      console.warn('KENO: серверные архивы временно недоступны', error);
     } finally {
       syncInFlight = false;
     }
@@ -326,7 +326,7 @@
     if (exportButton) {
       exportButton.onclick = () => {
         const payload = {
-          version: '6.2.2-server-archives',
+          version: 'server-archives',
           exportedAt: new Date().toISOString(),
           draws: safeDraws(),
           plusPredictions: typeof loadPlusPredictions === 'function' ? loadPlusPredictions() : [],
