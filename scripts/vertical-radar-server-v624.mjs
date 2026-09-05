@@ -6,7 +6,8 @@ const ROOT=process.cwd();
 const HISTORY=path.join(ROOT,'keno-history-v62.json');
 const STATE=path.join(ROOT,'vertical-radar-state-v624.json');
 const RUNTIME=path.join(ROOT,'vertical-radar-runtime-v624.json');
-const MAX_FINALIZED=1200;
+const MAX_FINALIZED=200;
+const MAX_RUNTIME_HISTORY=120;
 const PAYOUTS={3:{3:1500,2:300},4:{4:3300,3:300,2:100},5:{5:20000,4:1920,3:400}};
 const SCHEDULE=['00:02','00:17','00:32','01:02','01:17','01:32','02:02','02:17','02:32','03:02','03:32','04:02','04:17','04:32','05:02','05:17','05:32','06:02','06:17','06:32','07:02','07:32','08:02','08:17','08:32','09:02','09:17','09:32','10:02','10:17','10:32','11:02','11:32','12:02','12:17','12:32','13:02','13:17','13:32','14:02','14:17','14:32','15:02','15:32','16:02','16:17','16:32','17:02','17:17','17:32','18:02','18:17','18:32','19:02','19:32','20:02','20:17','20:32','21:02','21:17','21:32','22:02','22:17','22:32','23:02','23:32'];
 const read=(f,fb=null)=>{try{return JSON.parse(fs.readFileSync(f,'utf8'))}catch(e){if(fb!==null)return fb;throw e}};
@@ -36,6 +37,6 @@ trim(state);
 const latest=hist.at(-1),next=nextMeta(latest);if(!state.finalized[next.draw]&&!state.snapshots[next.draw]){state.snapshots[next.draw]=build(hist,hist.length-1,'SERVER_PRE_DRAW');console.log(`VR CAPTURE №${next.draw} ${next.date} ${next.time}`)}
 trim(state);atomic(STATE,state);
 const pending=state.snapshots[next.draw]||Object.values(state.snapshots).sort((a,b)=>b.target.draw-a.target.draw)[0]||null;
-const history=Object.values(state.finalized).sort((a,b)=>b.target.draw-a.target.draw).slice(0,300);
+const history=Object.values(state.finalized).sort((a,b)=>b.target.draw-a.target.draw).slice(0,MAX_RUNTIME_HISTORY);
 atomic(RUNTIME,{version:2,generatedAt:new Date().toISOString(),source:'SERVER_VERTICAL_RADAR_M5M_STYLE',latestOfficial:latest,target:pending?.target||next,pending,history,totals:{storedFinalized:Object.keys(state.finalized).length,pending:Object.keys(state.snapshots).length,historyPublished:history.length}});
 console.log(`VR SERVER OK latest=№${latest.draw} target=№${next.draw} finalized=${Object.keys(state.finalized).length}`);
