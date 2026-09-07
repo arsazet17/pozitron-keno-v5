@@ -117,6 +117,88 @@ function coreKey(d){
  });
 }
 
+function sameOfficialRecord(a,b){
+ return coreKey(a)===coreKey(b) && a.column===b.column;
+}
+
+function contiguousRuns(records){
+ const ordered=[...records].sort((a,b)=>a.draw-b.draw);
+ const runs=[];
+
+ for(const record of ordered){
+  const lastRun=runs.at(-1);
+  if(!lastRun || record.draw!==lastRun.at(-1).draw+1){
+   runs.push([record]);
+  }else{
+   lastRun.push(record);
+  }
+ }
+ return runs;
+}
+
+function chooseStableConsensus(reads,tailSize=TAIL_SIZE){
+ if(reads.length<2)throw new Error('At least two tail reads are required');
+
+ const maps=reads.map(rows=>new Map(rows.map(r=>[r.draw,r])));
+ const minimum=Math.max(2,tailSize-1);
+ const candidates=[];
+ const pairDiagnostics=[];
+
+ for(let left=0;left<maps.length-1;left++){
+  for(let right=left+1;right<maps.length;right++){
+   const agreed=[...maps[left].keys()]
+    .filter(draw=>
+     maps[right].has(draw) &&
+     sameOfficialRecord(maps[left].get(draw),maps[right].get(draw))
+    )
+    .sort((a,b)=>a-b)
+    .map(draw=>maps[left].get(draw));
+
+   const runs=contiguousRuns(agreed);
+   const spans=[];
+
+   for(const run of runs){
+    spans.push(`№${run[0].draw}–№${run.at(-1).draw}(${run.length})`);
+    if(run.length>=minimum){
+     const records=run.slice(-tailSize);
+     candidates.push({
+      left:left+1,
+      right:right+1,
+      records,
+      lastDraw:records.at(-1).draw,
+      length:records.length
+     });
+    }
+   }
+
+   pairDiagnostics.push(
+    `checks ${left+1}+${right+1}: ${spans.length?spans.join(','):'none'}`
+   );
+  }
+ }
+
+ if(!candidates.length){
+  throw new Error(
+   `No ${minimum}-draw contiguous 2-of-${reads.length} consensus; `+
+   pairDiagnostics.join('; ')
+  );
+ }
+
+ let chosen=candidates[0];
+ for(const candidate of candidates.slice(1)){
+  if(candidate.lastDraw>chosen.lastDraw ||
+     (candidate.lastDraw===chosen.lastDraw && candidate.length>chosen.length)){
+   chosen=candidate;
+  }
+ }
+
+ console.log(
+  `CONSENSUS 2/3: checks=${chosen.left}+${chosen.right}; `+
+  `stable=${chosen.length}; №${chosen.records[0].draw}–№${chosen.lastDraw}`
+ );
+ return chosen.records;
+}
+
 async function login(page){
  if(!EMAIL||!PASSWORD)throw new Error('FAIL: нет STOLOTO_EMAIL / STOLOTO_PASSWORD');
 
@@ -365,7 +447,7 @@ async function stableTail(page){
   const rows=await collect(page);
   if(rows.length<TAIL_SIZE)throw new Error(`Only ${rows.length} recent draws found`);
 
-  reads.push(new Map(rows.map(r=>[r.draw,r])));
+  reads.push(rows);
   console.log(
    `CHECK ${check}/3: №${rows[0].draw}–№${rows.at(-1).draw}`
   );
@@ -373,42 +455,9 @@ async function stableTail(page){
   if(check<3)await page.waitForTimeout(700);
  }
 
- // M5M-схема: сравниваем только хвост 10.
- const common=[...reads[0].keys()]
-  .filter(draw=>reads[1].has(draw)&&reads[2].has(draw))
-  .sort((a,b)=>a-b)
-  .slice(-TAIL_SIZE);
-
- if(common.length<TAIL_SIZE){
-  throw new Error(`Tail changed between checks: common=${common.length}/${TAIL_SIZE}`);
- }
-
- const stable=[];
- const mismatches=[];
-
- for(const draw of common){
-  const a=reads[0].get(draw);
-  const b=reads[1].get(draw);
-  const c=reads[2].get(draw);
-
-  // Факт проверяется по номеру + дате + времени + всем 20 числам.
-  // parity вычисляется, а column сверяется отдельно.
-  if(coreKey(a)===coreKey(b) && coreKey(a)===coreKey(c) &&
-     a.column===b.column && a.column===c.column){
-   stable.push(a);
-  }else{
-   mismatches.push(draw);
-  }
- }
-
- if(stable.length<TAIL_SIZE){
-  throw new Error(
-   `Triple tail10 check failed: stable=${stable.length}/${TAIL_SIZE}; `+
-   `mismatch=${mismatches.join(',')}`
-  );
- }
-
- return stable;
+ // При смене хвоста новый тираж может появиться между чтениями.
+ // Берём только непрерывные факты, полностью совпавшие минимум в двух проверках.
+ return chooseStableConsensus(reads);
 }
 
 async function readHistory(){
@@ -447,7 +496,7 @@ function mergeFresh(history,stable){
  }
 
  const map=new Map(history.map(d=>[Number(d.draw),d]));
- const source='Официальный Столото · M5M tail10 triple-check';
+ const source='Официальный Столото · M5M tail10 2-of-3 consensus';
 
  for(const d of fresh){
   map.set(d.draw,{
@@ -477,7 +526,7 @@ async function writeStatus(history,stable,fresh){
    version:VERSION,
    source:'Stoloto',
    sourceUrl:ARCHIVE_URL,
-   verification:'M5M tail10 + 3 checks + DOM/fallback',
+   verification:'M5M tail10 + 2-of-3 contiguous consensus + DOM/fallback',
    updatedAt:new Date().toISOString(),
    drawsStored:history.length,
    latestDraw:Number(last.draw||0),
