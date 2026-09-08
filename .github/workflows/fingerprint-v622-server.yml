@@ -7,6 +7,12 @@ on:
     types: [completed]
   schedule:
     - cron: "*/5 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "fingerprint-v622.js"
+      - "scripts/fingerprint-v622-server.mjs"
+      - ".github/workflows/fingerprint-v622-server.yml"
 
 permissions:
   contents: write
@@ -19,33 +25,75 @@ jobs:
   build-fingerprint-archives:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
-      - name: Checkout repository
+      - name: Checkout only FINGERPRINT working set
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: main
+          sparse-checkout: |
+            scripts
+            keno-history-v62.json
+            cluster-archive-next-v622.json
+            cluster-archive-minus1-v622.json
+            cluster-archive-minus2-v622.json
+            fingerprint-archive-next-v622.json
+            fingerprint-archive-minus1-v622.json
+            fingerprint-archive-minus2-v622.json
+            fingerprint-live-next-v622.json
+            fingerprint-live-minus1-v622.json
+            fingerprint-live-minus2-v622.json
+          sparse-checkout-cone-mode: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
-      - name: Get latest main
-        run: git pull --rebase origin main
+      - name: Validate generator
+        run: node --check scripts/fingerprint-v622-server.mjs
 
-      - name: Build shared FINGERPRINT archives
-        run: node scripts/fingerprint-v622-server.mjs
-
-      - name: Commit shared FINGERPRINT archives
+      - name: Recalculate from the newest main and push safely
         shell: bash
         run: |
-          if git diff --quiet -- fingerprint-archive-next-v622.json fingerprint-archive-minus1-v622.json fingerprint-archive-minus2-v622.json; then
-            echo "No FINGERPRINT archive changes"
-            exit 0
-          fi
+          set -euo pipefail
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add fingerprint-archive-next-v622.json fingerprint-archive-minus1-v622.json fingerprint-archive-minus2-v622.json
-          git commit -m "Update shared FINGERPRINT archives"
-          git pull --rebase origin main
-          git push origin HEAD:main
+
+          for attempt in 1 2 3; do
+            echo "FINGERPRINT attempt $attempt"
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            node scripts/fingerprint-v622-server.mjs
+
+            git add \
+              fingerprint-archive-next-v622.json \
+              fingerprint-archive-minus1-v622.json \
+              fingerprint-archive-minus2-v622.json \
+              fingerprint-live-next-v622.json \
+              fingerprint-live-minus1-v622.json \
+              fingerprint-live-minus2-v622.json
+
+            if git diff --cached --quiet; then
+              echo "FINGERPRINT already current"
+              exit 0
+            fi
+
+            git commit -m "Update shared FINGERPRINT archives"
+
+            if git push origin HEAD:main; then
+              echo "FINGERPRINT published"
+              exit 0
+            fi
+
+            echo "Push conflict — recalculate from newest main"
+            sleep 2
+          done
+
+          echo "FINGERPRINT publish failed after 3 recalculations" >&2
+          exit 1
