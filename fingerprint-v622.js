@@ -1,10 +1,28 @@
 'use strict';
-/* ПОЗИТРОН КЕНО — FINGERPRINT CLEAN */
+/* ПОЗИТРОН КЕНО — FINGERPRINT LIVE / lazy archive */
 (() => {
-  const VERSION='3.0.0';
-  const META={1:{button:'🎯'},2:{button:'⏳−1'},3:{button:'⏳−2'}};
-  const FILES={1:'./fingerprint-archive-next-v622.json',2:'./fingerprint-archive-minus1-v622.json',3:'./fingerprint-archive-minus2-v622.json'};
-  const CACHE_KEYS={1:'pozitron_v622_fingerprint_server_h1',2:'pozitron_v622_fingerprint_server_h2',3:'pozitron_v622_fingerprint_server_h3'};
+  const VERSION='3.1.0';
+
+  const META={
+    1:{button:'🎯'},
+    2:{button:'⏳−1'},
+    3:{button:'⏳−2'}
+  };
+
+  // На старте грузим ТОЛЬКО маленькие LIVE-файлы.
+  const LIVE_FILES={
+    1:'./fingerprint-live-next-v622.json',
+    2:'./fingerprint-live-minus1-v622.json',
+    3:'./fingerprint-live-minus2-v622.json'
+  };
+
+  // Полный тяжёлый архив читается только по кнопке «Архив».
+  const FULL_FILES={
+    1:'./fingerprint-archive-next-v622.json',
+    2:'./fingerprint-archive-minus1-v622.json',
+    3:'./fingerprint-archive-minus2-v622.json'
+  };
+
   const KENO_PAYOUTS=Object.freeze({
     10:Object.freeze({10:10000000,9:1000000,8:50000,7:5000,6:750,5:250,4:100,0:200}),
     9:Object.freeze({9:4000000,8:210000,7:10000,6:1000,5:300,4:150,0:150}),
@@ -24,8 +42,10 @@
     mode:'logic',
     archiveViews:{},
     forecastViews:{},
-    data:{1:null,2:null,3:null},
+    live:{1:null,2:null,3:null},
+    full:{1:null,2:null,3:null},
     syncing:false,
+    archiveLoading:false,
     lastSync:0,
     error:''
   };
@@ -36,6 +56,155 @@
   const rubles=a=>`${Number(a||0).toLocaleString('ru-RU')} ₽`;
   const payoutFor=(s,g)=>Number(KENO_PAYOUTS[num(s)]?.[num(g)]||0);
 
+  function hitSet(numbers,actual){
+    const a=new Set((actual?.balls||[]).map(Number));
+    return new Set((numbers||[]).map(Number).filter(n=>a.has(n)));
+  }
+
+  function targetStamp(record){
+    const date=String(record?.actual?.date||record?.targetDate||'').trim();
+    const time=String(record?.actual?.time||record?.targetTime||'').trim().slice(0,5);
+    return [date,time].filter(Boolean).join(' · ');
+  }
+
+  function normalizeRecord(r,h){
+    if(!r||!Number.isFinite(Number(r.targetDraw)))return null;
+
+    const balls=Array.isArray(r?.actual?.balls)
+      ?r.actual.balls.map(Number).slice(0,20)
+      :[];
+
+    const pool=Array.isArray(r?.logic?.pool20)
+      ?r.logic.pool20.map(Number)
+      :(Array.isArray(r.pool20)?r.pool20.map(Number):[]);
+
+    const logicCombos=Array.isArray(r?.logic?.combos)
+      ?r.logic.combos
+      :(Array.isArray(r.combos)?r.combos:[]);
+
+    return {
+      ...r,
+      id:String(r.id||`fp:${h}:${r.targetDraw}`),
+      horizon:num(r.horizon,h),
+      sourceDraw:num(r.sourceDraw),
+      targetDraw:num(r.targetDraw),
+      targetDate:String(r.targetDate||r?.actual?.date||''),
+      targetTime:String(r.targetTime||r?.actual?.time||'').slice(0,5),
+      logic:{
+        ...(r.logic||{}),
+        pool20:pool,
+        combos:logicCombos,
+        neighbors:Array.isArray(r?.logic?.neighbors)
+          ?r.logic.neighbors
+          :(Array.isArray(r.neighbors)?r.neighbors:[])
+      },
+      antilogic:{
+        ...(r.antilogic||{}),
+        candidates:Array.isArray(r?.antilogic?.candidates)
+          ?r.antilogic.candidates.map(Number)
+          :[],
+        combos:Array.isArray(r?.antilogic?.combos)?r.antilogic.combos:[],
+        neighbors:Array.isArray(r?.antilogic?.neighbors)?r.antilogic.neighbors:[]
+      },
+      actual:balls.length===20?{
+        targetDraw:num(r.actual.targetDraw,r.targetDraw),
+        date:String(r.actual.date||''),
+        time:String(r.actual.time||'').slice(0,5),
+        balls
+      }:null
+    };
+  }
+
+  function normalizePayload(raw,h){
+    return {
+      ...raw,
+      horizon:h,
+      records:(Array.isArray(raw?.records)?raw.records:[])
+        .map(r=>normalizeRecord(r,h))
+        .filter(Boolean)
+        .sort((a,b)=>a.targetDraw-b.targetDraw)
+    };
+  }
+
+  async function fetchJson(file,h){
+    const res=await fetch(`${file}?t=${Date.now()}`,{cache:'no-store'});
+    if(!res.ok)throw new Error(`${META[h].button}: HTTP ${res.status}`);
+    return normalizePayload(await res.json(),h);
+  }
+
+  async function fetchLive(h){
+    const payload=await fetchJson(LIVE_FILES[h],h);
+    state.live[h]=payload;
+    return payload;
+  }
+
+  async function loadFull(h,force=false){
+    if(state.full[h]&&!force)return state.full[h];
+    state.archiveLoading=true;
+    render();
+    try{
+      const payload=await fetchJson(FULL_FILES[h],h);
+      state.full[h]=payload;
+      return payload;
+    }finally{
+      state.archiveLoading=false;
+    }
+  }
+
+  function captureOpenRecords(){
+    return new Set(
+      [...document.querySelectorAll('#fingerprintResult details[data-fp-id][open]')]
+        .map(x=>x.dataset.fpId)
+    );
+  }
+
+  function restoreOpenRecords(ids){
+    if(!ids?.size)return;
+    document.querySelectorAll('#fingerprintResult details[data-fp-id]').forEach(x=>{
+      if(ids.has(x.dataset.fpId))x.open=true;
+    });
+  }
+
+  async function sync(force=false){
+    if(state.syncing||(!force&&Date.now()-state.lastSync<30000))return;
+    state.syncing=true;
+    const open=captureOpenRecords();
+
+    try{
+      const rs=await Promise.allSettled([1,2,3].map(fetchLive));
+      state.lastSync=Date.now();
+      state.error=rs
+        .filter(x=>x.status==='rejected')
+        .map(x=>x.reason?.message||'ошибка')
+        .join(' · ');
+
+      // Если открыт полный архив — не подменяем его LIVE-данными.
+      if(!$('fingerprintPanel')?.hidden)render(open);
+    }finally{
+      state.syncing=false;
+    }
+  }
+
+  const chips=(numbers,hits,anti=false)=>(numbers||[]).map(n=>
+    `<span class="fp-num ${anti?'anti':''} ${hits?.has(Number(n))?'hit':''}">${pad(n)}${hits?.has(Number(n))?' ✓':''}</span>`
+  ).join('');
+
+  function comboHtml(combo,actual,anti=false){
+    const sorted=[...(combo.numbers||[])].map(Number).sort((a,b)=>a-b);
+    const hits=actual?hitSet(sorted,actual):null;
+    const hitCount=hits?hits.size:0;
+    const payout=actual?payoutFor(combo.size,hitCount):0;
+
+    return `<div class="fp-combo ${anti?'fp-anti-combo':''} ${payout>0?'fp-combo-win':''}">
+      <div class="fp-combo-head">
+        <b>${combo.id}</b>
+        <span>${actual?`${hitCount}/${combo.size}`:''}</span>
+      </div>
+      <div class="fp-numbers">${chips(sorted,hits,anti)}</div>
+      ${payout>0?`<div class="fp-prize">🔥 ${rubles(payout)}</div>`:''}
+    </div>`;
+  }
+
   function recordComboPayout(record,isAnti){
     const actual=record?.actual;
     if(!actual?.balls?.length)return 0;
@@ -45,134 +214,18 @@
     );
   }
 
-  function readCache(h){
-    try{
-      const p=JSON.parse(localStorage.getItem(CACHE_KEYS[h])||'null');
-      return p&&Array.isArray(p.records)?p:null
-    }catch{return null}
-  }
-
-  function writeCache(h,p){
-    try{localStorage.setItem(CACHE_KEYS[h],JSON.stringify(p))}catch{}
-  }
-
-  function normalizeRecord(r,h){
-    if(!r||!Number.isFinite(Number(r.targetDraw)))return null;
-    const balls=Array.isArray(r?.actual?.balls)?r.actual.balls.map(Number).slice(0,20):[];
-    const pool=Array.isArray(r?.logic?.pool20)?r.logic.pool20.map(Number):(Array.isArray(r.pool20)?r.pool20.map(Number):[]);
-    const logicCombos=Array.isArray(r?.logic?.combos)?r.logic.combos:(Array.isArray(r.combos)?r.combos:[]);
-    return{
-      ...r,
-      id:String(r.id||`fp:${h}:${r.targetDraw}`),
-      horizon:num(r.horizon,h),
-      sourceDraw:num(r.sourceDraw),
-      targetDraw:num(r.targetDraw),
-      logic:{
-        ...(r.logic||{}),
-        pool20:pool,
-        combos:logicCombos,
-        neighbors:Array.isArray(r?.logic?.neighbors)?r.logic.neighbors:(Array.isArray(r.neighbors)?r.neighbors:[])
-      },
-      antilogic:{
-        ...(r.antilogic||{}),
-        candidates:Array.isArray(r?.antilogic?.candidates)?r.antilogic.candidates.map(Number):[],
-        combos:Array.isArray(r?.antilogic?.combos)?r.antilogic.combos:[],
-        neighbors:Array.isArray(r?.antilogic?.neighbors)?r.antilogic.neighbors:[]
-      },
-      actual:balls.length===20?{
-        targetDraw:num(r.actual.targetDraw,r.targetDraw),
-        date:String(r.actual.date||''),
-        time:String(r.actual.time||''),
-        balls
-      }:null
-    }
-  }
-
-  function normalizePayload(raw,h){
-    return{
-      ...raw,
-      horizon:h,
-      records:(Array.isArray(raw?.records)?raw.records:[])
-        .map(r=>normalizeRecord(r,h))
-        .filter(Boolean)
-        .sort((a,b)=>a.targetDraw-b.targetDraw)
-    }
-  }
-
-  async function fetchHorizon(h){
-    const res=await fetch(`${FILES[h]}?t=${Date.now()}`,{
-      cache:'no-store',
-      headers:{'cache-control':'no-cache, no-store, must-revalidate',pragma:'no-cache'}
-    });
-    if(!res.ok)throw new Error(`${META[h].button}: HTTP ${res.status}`);
-    const p=normalizePayload(await res.json(),h);
-    state.data[h]=p;
-    writeCache(h,p);
-    return p
-  }
-
-  function captureOpenRecords(){
-    return new Set(
-      [...document.querySelectorAll('#fingerprintResult details[data-fp-id][open]')]
-        .map(x=>x.dataset.fpId)
-    )
-  }
-
-  function restoreOpenRecords(ids){
-    if(!ids?.size)return;
-    document.querySelectorAll('#fingerprintResult details[data-fp-id]').forEach(x=>{
-      if(ids.has(x.dataset.fpId))x.open=true
-    })
-  }
-
-  async function sync(force=false){
-    if(state.syncing||(!force&&Date.now()-state.lastSync<30000))return;
-    state.syncing=true;
-    const open=captureOpenRecords();
-    try{
-      const rs=await Promise.allSettled([1,2,3].map(fetchHorizon));
-      state.lastSync=Date.now();
-      state.error=rs
-        .filter(x=>x.status==='rejected')
-        .map(x=>x.reason?.message||'ошибка')
-        .join(' · ');
-      if(!$('fingerprintPanel')?.hidden)render(open)
-    }finally{
-      state.syncing=false
-    }
-  }
-
-  const hitSet=(numbers,actual)=>{
-    const a=new Set((actual?.balls||[]).map(Number));
-    return new Set((numbers||[]).map(Number).filter(n=>a.has(n)))
-  };
-
-  const chips=(numbers,hits,anti=false)=>(numbers||[]).map(n=>
-    `<span class="fp-num ${anti?'anti':''} ${hits?.has(Number(n))?'hit':''}">${pad(n)}${hits?.has(Number(n))?' ✓':''}</span>`
-  ).join('');
-
-  function comboHtml(combo,actual,anti=false){
-    const sortedNumbers=[...(combo.numbers||[])].map(Number).sort((a,b)=>a-b);
-    const hits=actual?hitSet(sortedNumbers,actual):null;
-    const hitCount=hits?hits.size:0;
-    const payout=actual?payoutFor(combo.size,hitCount):0;
-    return`<div class="fp-combo ${anti?'fp-anti-combo':''} ${payout>0?'fp-combo-win':''}">
-      <div class="fp-combo-head"><b>${combo.id}</b><span>${actual?`${hitCount}/${combo.size}`:''}</span></div>
-      <div class="fp-numbers">${chips(sortedNumbers,hits,anti)}</div>
-      ${payout>0?`<div class="fp-prize">🔥 ${rubles(payout)}</div>`:''}
-    </div>`
-  }
-
   function forecastKey(record,isAnti){
-    return `${record.id}:${isAnti?'anti':'logic'}`
+    return `${record.id}:${isAnti?'anti':'logic'}`;
   }
 
   function forecastMode(record,isAnti){
-    return state.forecastViews[forecastKey(record,isAnti)]||'original'
+    return state.forecastViews[forecastKey(record,isAnti)]||'original';
   }
 
   function forecastButton(record,isAnti,mode){
-    return`<button type="button" class="fp-forecast-asc-btn ${mode==='asc'?'active':''}" data-fp-forecast-key="${forecastKey(record,isAnti)}">Воз</button>`
+    return `<button type="button"
+      class="fp-forecast-asc-btn ${mode==='asc'?'active':''}"
+      data-fp-forecast-key="${forecastKey(record,isAnti)}">Воз</button>`;
   }
 
   function forecastCells(numbers,isAnti,mode){
@@ -180,28 +233,29 @@
     const ascending=[...original].sort((a,b)=>a-b);
     const shown=mode==='asc'?ascending:original;
     const showStable=mode==='returned';
+
     return shown.map((n,i)=>{
       const stable=showStable&&original[i]===ascending[i];
-      return`<span class="fp-num fp-forecast-num ${isAnti?'anti':''} ${stable?'fp-stable-pos':''}">${pad(n)}</span>`
-    }).join('')
+      return `<span class="fp-num fp-forecast-num ${isAnti?'anti':''} ${stable?'fp-stable-pos':''}">${pad(n)}</span>`;
+    }).join('');
   }
 
   function archiveView(record){
-    return state.archiveViews[record.id]||'fall'
+    return state.archiveViews[record.id]||'fall';
   }
 
   function archiveButtons(record,actual,mode){
     const disabled=!Array.isArray(actual?.balls)||actual.balls.length!==20;
-    return`<div class="fp-view-modes">
+    return `<div class="fp-view-modes">
       <button class="fp-view-btn ${mode==='fall'?'active':''}" data-fp-record="${record.id}" data-fp-view="fall" ${disabled?'disabled':''}>Вып</button>
       <button class="fp-view-btn ${mode==='asc'?'active':''}" data-fp-record="${record.id}" data-fp-view="asc" ${disabled?'disabled':''}>Возр</button>
       <button class="fp-view-btn ${mode==='both'?'active':''}" data-fp-record="${record.id}" data-fp-view="both" ${disabled?'disabled':''}>Вм</button>
-    </div>`
+    </div>`;
   }
 
   function archiveOverlay(record,block,isAnti,mode){
     const actual=record.actual;
-    if(!actual?.balls?.length)return'';
+    if(!actual?.balls?.length)return '';
 
     const predicted=new Set((isAnti?block.candidates:block.pool20||[]).map(Number));
     const falling=actual.balls.map(Number);
@@ -212,24 +266,24 @@
         const ascNum=ascending[i];
         const hitFall=predicted.has(fallNum);
         const hitAsc=predicted.has(ascNum);
-        return`<span class="fp-num fp-archive-num fp-vm-split ${isAnti?'anti':''}">
+        return `<span class="fp-num fp-archive-num fp-vm-split ${isAnti?'anti':''}">
           <span class="fp-vm-half fp-vm-left ${hitFall?'hit-half':''}">
             <b>${pad(fallNum)}</b>${hitFall?'<i>✓</i>':''}
           </span>
           <span class="fp-vm-half fp-vm-right ${hitAsc?'hit-half':''}">
             <b>${pad(ascNum)}</b>${hitAsc?'<i>✓</i>':''}
           </span>
-        </span>`
-      }).join('')
+        </span>`;
+      }).join('');
     }
 
     const ordered=mode==='asc'?ascending:falling;
     return ordered.map(n=>{
       const hit=predicted.has(n);
-      return`<span class="fp-num fp-archive-num ${isAnti?'anti':''} ${hit?'hit':''}">
+      return `<span class="fp-num fp-archive-num ${isAnti?'anti':''} ${hit?'hit':''}">
         <b>${pad(n)}${hit?' ✓':''}</b>
-      </span>`
-    }).join('')
+      </span>`;
+    }).join('');
   }
 
   function sectionHtml(record){
@@ -241,6 +295,7 @@
     const hitCount=hits?hits.size:0;
     const poolPayout=actual?payoutFor(hitCount,hitCount):0;
     const listTitle=isAnti?'Кандидаты вне POOL-20':'POOL-20';
+    const stamp=targetStamp(record);
 
     const groups=[3,4,5].map(size=>
       `<div class="fp-label">К${size}</div>`+
@@ -263,13 +318,15 @@
         <div class="fp-numbers fp-main-pool fp-archive-overlay">${archiveOverlay(record,block,isAnti,mode)}</div>`;
     }else{
       const mode=forecastMode(record,isAnti);
-      main=`<div class="fp-label fp-forecast-label"><span>${listTitle}</span>${forecastButton(record,isAnti,mode)}</div>
+      main=`<div class="fp-label fp-forecast-label">
+          <span>${listTitle}</span>${forecastButton(record,isAnti,mode)}
+        </div>
         <div class="fp-numbers fp-main-pool fp-forecast-pool">${forecastCells(numbers,isAnti,mode)}</div>`;
     }
 
-    return`<div class="fp-section ${isAnti?'anti-section':'logic-section'}">
+    return `<div class="fp-section ${isAnti?'anti-section':'logic-section'}">
       <div class="fp-mode-title">${isAnti?'⚡ ANTILOGIC · вне POOL-20':'🟢 LOGIC · из POOL-20'}</div>
-      <div class="fp-target">Комбинации на тираж №${record.targetDraw}</div>
+      <div class="fp-target">Комбинации на тираж №${record.targetDraw}${stamp?` · ${stamp}`:''}</div>
       ${main}
       ${actual&&poolPayout>0?`<div class="fp-pool-prize ${isAnti?'anti-pool-prize':''}">👀👀 ${rubles(poolPayout)}</div>`:''}
       ${groups}
@@ -278,7 +335,7 @@
         <summary>${isAnti?'5 аналогов второго кольца':'5 ближайших исторических аналогов'}</summary>
         ${neighbors.map((x,i)=>`<div>${i+1}. №${x.targetDraw} · дистанция ${num(x.distance).toFixed(4)}</div>`).join('')}
       </details>
-    </div>`
+    </div>`;
   }
 
   function forecastHtml(record,expanded){
@@ -291,48 +348,43 @@
     const modeCount=modeHits?modeHits.size:0;
     const modeLabel=isAnti?'ANTILOGIC':'LOGIC';
     const summaryPayout=actual?recordComboPayout(record,isAnti):0;
+    const stamp=targetStamp(record);
 
     const body=`<div class="fp-head">
-      <b>${META[record.horizon]?.button||'🎯'} тираж №${record.targetDraw}</b>
+      <b>${META[record.horizon]?.button||'🎯'} тираж №${record.targetDraw}${stamp?` · ${stamp}`:''}</b>
       <span>${actual?`${modeLabel} ${modeCount}/20`:'ожидает результата'}</span>
     </div>
     <div class="fp-note">Зафиксировано после №${record.sourceDraw}. Прогноз после сохранения не меняется.</div>
     ${sectionHtml(record)}`;
 
-    if(expanded)return`<div class="fp-record">${body}</div>`;
-    return`<details class="fp-record" data-fp-id="${record.id}">
+    if(expanded)return `<div class="fp-record">${body}</div>`;
+
+    return `<details class="fp-record" data-fp-id="${record.id}">
       <summary>
-        <b>${META[record.horizon]?.button} №${record.targetDraw}</b>
+        <b>${META[record.horizon]?.button} №${record.targetDraw}${stamp?` · ${stamp}`:''}</b>
         <span class="fp-summary-prize">${actual&&summaryPayout>0?`🔥 ${rubles(summaryPayout)}`:''}</span>
         <span class="fp-summary-score">${actual?`${modeLabel} ${modeCount}/20`:'⏳'}</span>
       </summary>
       ${body}
-    </details>`
+    </details>`;
   }
 
-  function bindForecastButtons(box){
+  function bindDynamic(box){
     box.querySelectorAll('[data-fp-forecast-key]').forEach(btn=>{
       btn.onclick=()=>{
         const key=btn.dataset.fpForecastKey;
         const current=state.forecastViews[key]||'original';
         state.forecastViews[key]=current==='asc'?'returned':'asc';
-        render(captureOpenRecords())
-      }
-    })
-  }
+        render(captureOpenRecords());
+      };
+    });
 
-  function bindArchiveButtons(box){
     box.querySelectorAll('[data-fp-view][data-fp-record]').forEach(btn=>{
       btn.onclick=()=>{
         state.archiveViews[btn.dataset.fpRecord]=btn.dataset.fpView;
-        render(captureOpenRecords())
-      }
-    })
-  }
-
-  function bindDynamic(box){
-    bindForecastButtons(box);
-    bindArchiveButtons(box)
+        render(captureOpenRecords());
+      };
+    });
   }
 
   function render(openIds=captureOpenRecords()){
@@ -343,30 +395,56 @@
       b.classList.toggle('active',!state.archive&&num(b.dataset.fpH)===state.horizon)
     );
     $('fingerprintArchiveBtn')?.classList.toggle('active',state.archive);
+
     document.querySelectorAll('[data-fp-mode]').forEach(b=>
       b.classList.toggle('active',b.dataset.fpMode===state.mode)
     );
 
-    const payload=state.data[state.horizon]||readCache(state.horizon);
+    if(state.archive){
+      if(state.archiveLoading){
+        box.innerHTML='<div class="fp-msg">📚 Загружаю полный архив только по запросу…</div>';
+        return;
+      }
+
+      const payload=state.full[state.horizon];
+      if(!payload){
+        box.innerHTML='<div class="fp-msg">📚 Полный архив ещё не загружен.</div>';
+        return;
+      }
+
+      const records=payload.records||[];
+      box.innerHTML=`<div class="fp-archive-head">📚 Общий архив FINGERPRINT ${META[state.horizon].button}</div>
+        <div class="fp-note">Полный архив загружен только после нажатия «Архив».</div>
+        ${records.length
+          ?records.slice().reverse().map(r=>forecastHtml(r,false)).join('')
+          :'<div class="fp-msg">Серверный архив пока пуст.</div>'}`;
+
+      restoreOpenRecords(openIds);
+      bindDynamic(box);
+      return;
+    }
+
+    const payload=state.live[state.horizon];
+
+    // Никакой localStorage-версии до сетевого LIVE:
+    // старый прогноз при открытии больше не мелькает.
     if(!payload){
-      box.innerHTML=`<div class="fp-msg">${state.error?`Проверка архива сервера недоступна: ${state.error}`:'Загружаю общий серверный архив FINGERPRINT…'}</div>`;
-      return
+      box.innerHTML=`<div class="fp-msg">${
+        state.error
+          ?`LIVE FINGERPRINT временно недоступен: ${state.error}`
+          :'Загружаю свежий LIVE FINGERPRINT…'
+      }</div>`;
+      return;
     }
 
     const records=payload.records||[];
-
-    if(state.archive){
-      box.innerHTML=`<div class="fp-archive-head">📚 Общий архив FINGERPRINT ${META[state.horizon].button}</div>
-        <div class="fp-note">LOGIC и ANTILOGIC хранятся раздельно внутри одной записи тиража.</div>
-        ${records.length?records.slice().reverse().map(r=>forecastHtml(r,false)).join(''):'<div class="fp-msg">Серверный архив пока пуст.</div>'}`;
-      restoreOpenRecords(openIds);
-      bindDynamic(box);
-      return
-    }
-
     const latest=records.slice().reverse().find(r=>!r.actual)||records.at(-1);
-    box.innerHTML=latest?forecastHtml(latest,true):'<div class="fp-msg">Сервер ещё не сформировал первый прогноз.</div>';
-    bindDynamic(box)
+
+    box.innerHTML=latest
+      ?forecastHtml(latest,true)
+      :'<div class="fp-msg">Сервер ещё не сформировал первый LIVE-прогноз.</div>';
+
+    bindDynamic(box);
   }
 
   function styles(){
@@ -387,8 +465,9 @@
 .fp-mode-btn[data-fp-mode="antilogic"].active{border-color:#f0a63b;background:#332812;color:#ffd37b}
 .fp-record{border:1px solid #2a4464;border-radius:12px;background:#0b1727;margin:8px 0;padding:8px}
 .fp-record>summary,.fp-head,.fp-combo-head{display:flex;justify-content:space-between;gap:8px}
+.fp-head{flex-wrap:wrap}
 .fp-head span,.fp-record>summary span{color:#8eedaa;font-weight:900}
-.fp-record>summary{display:grid!important;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px}
+.fp-record>summary{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px}
 .fp-summary-prize{justify-self:center;color:#ffad42!important;font-weight:950!important;white-space:nowrap}
 .fp-summary-score{justify-self:end;white-space:nowrap}
 .fp-target{margin:6px 0 9px;padding:7px;border:1px solid #355a3d;border-radius:8px;font-weight:950;color:#8eedaa}
@@ -435,9 +514,9 @@
 .fp-nei{margin-top:10px;border-top:1px solid #263e5b;padding-top:8px}
 .fp-msg{background:#101f33;border:1px solid #263e5b;border-radius:9px;padding:10px;color:var(--muted);font-size:12px}
 .fp-archive-head{font-size:16px;font-weight:950;margin:8px 2px}
-@media(max-width:390px){.fp-tab,.fp-mode-btn{font-size:11px}}
+@media(max-width:390px){.fp-tab,.fp-mode-btn{font-size:11px}.fp-head b{font-size:14px}}
 `;
-    document.head.appendChild(s)
+    document.head.appendChild(s);
   }
 
   function createPanel(tools){
@@ -445,8 +524,12 @@
     p.id='fingerprintPanel';
     p.className='card';
     p.hidden=true;
+
     p.innerHTML=`<div class="fp-title">
-      <div><b>🧭 FINGERPRINT</b><div class="small">Манхэттен · общий серверный архив</div></div>
+      <div>
+        <b>🧭 FINGERPRINT</b>
+        <div class="small">Манхэттен · LIVE + архив по запросу</div>
+      </div>
       <span>v${VERSION}</span>
     </div>
     <div class="fp-warning">Экспериментальный статистический алгоритм. Прогнозы фиксируются сервером до целевого тиража и не гарантируют выпадение.</div>
@@ -460,7 +543,9 @@
       <button class="fp-mode-btn active" data-fp-mode="logic">🟢 LOGIC</button>
       <button class="fp-mode-btn" data-fp-mode="antilogic">⚡ ANTILOGIC</button>
     </div>
-    <div id="fingerprintResult"><div class="fp-msg">Загружаю общий серверный архив FINGERPRINT…</div></div>`;
+    <div id="fingerprintResult">
+      <div class="fp-msg">Загружаю свежий LIVE FINGERPRINT…</div>
+    </div>`;
 
     tools.insertAdjacentElement('afterend',p);
 
@@ -468,20 +553,31 @@
       state.horizon=num(b.dataset.fpH,1);
       state.archive=false;
       render();
-      sync(true)
+      sync(true);
     });
 
     p.querySelectorAll('[data-fp-mode]').forEach(b=>b.onclick=()=>{
       state.mode=b.dataset.fpMode;
-      render()
+      render();
     });
 
-    $('fingerprintArchiveBtn').onclick=()=>{
+    $('fingerprintArchiveBtn').onclick=async()=>{
       state.archive=!state.archive;
-      render()
+      render();
+      if(state.archive){
+        try{
+          await loadFull(state.horizon);
+          render();
+        }catch(err){
+          state.archiveLoading=false;
+          state.error=err?.message||String(err);
+          const box=$('fingerprintResult');
+          if(box)box.innerHTML=`<div class="fp-msg">Архив временно недоступен: ${state.error}</div>`;
+        }
+      }
     };
 
-    return p
+    return p;
   }
 
   function buildLayout(){
@@ -499,7 +595,7 @@
       btn.type='button';
       btn.textContent='🧭 FINGERPRINT';
       btn.setAttribute('aria-expanded','false');
-      tools.appendChild(btn)
+      tools.appendChild(btn);
     }
 
     let p=$('fingerprintPanel');
@@ -516,24 +612,29 @@
         state.archive=false;
         render();
         sync(true);
-        p.scrollIntoView({behavior:'smooth',block:'start'})
+        p.scrollIntoView({behavior:'smooth',block:'start'});
       }
     };
 
-    return true
+    return true;
   }
 
   function start(){
     styles();
-    [1,2,3].forEach(h=>state.data[h]=readCache(h));
 
     let ready=false;
     const tryBuild=()=>{
       if(ready)return;
       if(buildLayout()){
         ready=true;
+        // Сначала сеть, без показа старого localStorage.
         sync(true);
-        setInterval(()=>sync(false),30000)
+        setInterval(()=>sync(false),30000);
+        window.addEventListener('online',()=>sync(true));
+        window.addEventListener('focus',()=>sync(true));
+        document.addEventListener('visibilitychange',()=>{
+          if(document.visibilityState==='visible')sync(true);
+        });
       }
     };
 
@@ -541,20 +642,20 @@
 
     const timer=setInterval(()=>{
       tryBuild();
-      if(ready)clearInterval(timer)
+      if(ready)clearInterval(timer);
     },250);
 
     const mo=new MutationObserver(()=>{
       tryBuild();
-      if(ready)mo.disconnect()
+      if(ready)mo.disconnect();
     });
 
-    mo.observe(document.body,{childList:true,subtree:true})
+    mo.observe(document.body,{childList:true,subtree:true});
   }
 
   if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',start,{once:true})
+    document.addEventListener('DOMContentLoaded',start,{once:true});
   }else{
-    start()
+    start();
   }
 })();
