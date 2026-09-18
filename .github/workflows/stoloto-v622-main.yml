@@ -2,6 +2,10 @@ name: KENO v6.2 · Stoloto MAIN · FAST FACT CHROME
 
 on:
   workflow_dispatch:
+  schedule:
+    # Независимый серверный запуск. Не зависит от телефона/PWA.
+    # Каждые 5 минут — минимальный интервал GitHub Actions cron.
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: write
@@ -29,7 +33,6 @@ jobs:
           set -euo pipefail
           git fetch origin main
           git reset --hard origin/main
-          echo "Работаем от актуального main: $(git rev-parse HEAD)"
 
       - name: Node.js 20
         uses: actions/setup-node@v4
@@ -40,53 +43,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          if [ ! -f package.json ]; then
-            npm init -y >/dev/null 2>&1
-          fi
-
+          if [ ! -f package.json ]; then npm init -y >/dev/null 2>&1; fi
           npm install --no-audit --no-fund --ignore-scripts playwright
-
           CHROME=""
-          for p in \
-            /usr/bin/google-chrome \
-            /usr/bin/google-chrome-stable \
-            /usr/bin/chromium \
-            /usr/bin/chromium-browser
-          do
-            if [ -x "$p" ]; then
-              CHROME="$p"
-              break
-            fi
+          for p in /usr/bin/google-chrome /usr/bin/google-chrome-stable /usr/bin/chromium /usr/bin/chromium-browser; do
+            if [ -x "$p" ]; then CHROME="$p"; break; fi
           done
-
-          if [ -z "$CHROME" ]; then
-            echo "Системный Chrome на runner не найден" >&2
-            exit 1
-          fi
-
+          [ -n "$CHROME" ] || { echo "Системный Chrome не найден" >&2; exit 1; }
           echo "STOLOTO_CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
-          echo "Используем системный Chrome: $CHROME"
 
-      - name: Столото · M5M tail10 · FAST READ
+      - name: Столото · M5M reader · 3 чтения + consensus 2/3
         env:
           STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
           STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
           STOLOTO_CHROME_PATH: ${{ env.STOLOTO_CHROME_PATH }}
         run: node stoloto-keno-update-v62.mjs
 
-      - name: Проверить, появился ли новый тираж
+      - name: Проверить новый факт
         id: fresh
         shell: bash
         run: |
-          set -euo pipefail
-
           if git diff --quiet -- keno-history-v62.json; then
             echo "has_new=false" >> "$GITHUB_OUTPUT"
-            echo "Нового тиража нет"
           else
             echo "has_new=true" >> "$GITHUB_OUTPUT"
-            echo "Новый тираж найден — публикуем ФАКТ сейчас"
           fi
 
       - name: Сохранить status без нового факта
@@ -94,18 +74,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          if git diff --quiet -- keno-status-v62.json; then
-            echo "Status не изменился"
-            exit 0
-          fi
-
+          if git diff --quiet -- keno-status-v62.json; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add keno-status-v62.json
           git commit -m "KENO · reader status · новых тиражей нет"
-
           git pull --rebase origin main
           git push origin HEAD:main
 
@@ -114,22 +87,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add keno-history-v62.json keno-status-v62.json
           git commit -m "KENO · FAST FACT · новый тираж Столото"
-
           for attempt in 1 2 3; do
-            if git pull --rebase origin main && git push origin HEAD:main; then
-              echo "ФАКТ ОПУБЛИКОВАН"
-              exit 0
-            fi
+            if git pull --rebase origin main && git push origin HEAD:main; then exit 0; fi
             [ "$attempt" -lt 3 ] && sleep 2
           done
-
-          echo "Не удалось быстро опубликовать новый факт" >&2
           exit 1
 
       - name: Запустить тяжёлые модели и радар
@@ -141,41 +106,23 @@ jobs:
           set -euo pipefail
           gh workflow run keno-v622-server.yml --ref main
           gh workflow run vertical-radar-v624-server.yml --ref main
-          echo "ФАКТ опубликован; тяжёлые модели и радар запущены"
 
-      - name: Дождаться HEAVY и гарантированно запустить FINGERPRINT
+      - name: Дождаться HEAVY и запустить FINGERPRINT
         if: steps.fresh.outputs.has_new == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "Жду запуск KENO · HEAVY CLUSTER MODELS..."
           RUN_ID=""
-
           for attempt in 1 2 3 4 5 6; do
-            RUN_ID="$(gh run list \
-              --workflow keno-v622-server.yml \
-              --branch main \
-              --event workflow_dispatch \
-              --limit 1 \
-              --json databaseId,status,createdAt \
-              --jq '.[0].databaseId // empty')"
-            if [ -n "$RUN_ID" ]; then
-              break
-            fi
+            RUN_ID="$(gh run list --workflow keno-v622-server.yml --branch main --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+            [ -n "$RUN_ID" ] && break
             sleep 2
           done
-
           if [ -z "$RUN_ID" ]; then
-            echo "Не найден run HEAVY — запускаю FINGERPRINT как резерв"
             gh workflow run fingerprint-v622-server.yml --ref main
             exit 0
           fi
-
-          echo "HEAVY run id=$RUN_ID"
           gh run watch "$RUN_ID" --exit-status
-
-          echo "HEAVY завершён — запускаю FINGERPRINT по свежим cluster-архивам"
           gh workflow run fingerprint-v622-server.yml --ref main

@@ -2,6 +2,9 @@ name: KENO · Stoloto RESERVE
 
 on:
   workflow_dispatch:
+  schedule:
+    # Резерв смещён относительно MAIN: :02,:07,:12...
+    - cron: "2-59/5 * * * *"
 
 permissions:
   contents: write
@@ -15,25 +18,28 @@ jobs:
   stoloto-reserve:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-
     steps:
-      - name: Получить файлы репозитория
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: main
 
-      - name: Node.js 20
-        uses: actions/setup-node@v4
+      - name: Fresh main
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Установить Playwright
+      - name: Playwright
         run: |
           npm init -y
           npm install playwright
           npx playwright install --with-deps chromium
 
-      - name: Столото · OAuth · 3 независимых чтения
+      - name: Столото · M5M reader · резерв
         env:
           STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
           STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
@@ -49,14 +55,11 @@ jobs:
             echo "has_new=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Сохранить обновление Столото
+      - name: Сохранить обновление
         shell: bash
         run: |
-          if git diff --quiet -- keno-history-v62.json keno-status-v62.json; then
-            echo "Новых подтверждённых данных нет"
-            exit 0
-          fi
-
+          set -euo pipefail
+          if git diff --quiet -- keno-history-v62.json keno-status-v62.json; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add keno-history-v62.json keno-status-v62.json
@@ -64,12 +67,10 @@ jobs:
           git pull --rebase origin main
           git push origin HEAD:main
 
-      - name: Отдельно запустить тяжёлые модели
+      - name: Запустить тяжёлые модели
         if: steps.fresh.outputs.has_new == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
-          set -euo pipefail
           gh workflow run keno-v622-server.yml --ref main
           gh workflow run vertical-radar-v624-server.yml --ref main
