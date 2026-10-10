@@ -34,15 +34,21 @@ jobs:
           node-version: "20"
 
       - name: Playwright
+        shell: bash
         run: |
-          npm init -y
-          npm install playwright
+          set -euo pipefail
+          if [ ! -f package.json ]; then npm init -y >/dev/null 2>&1; fi
+          npm install --no-audit --no-fund playwright
           npx playwright install --with-deps chromium
+          CHROME="$(node -e "const { chromium } = require('playwright'); process.stdout.write(chromium.executablePath())")"
+          [ -x "$CHROME" ] || { echo "Chromium Playwright не найден: $CHROME" >&2; exit 1; }
+          echo "STOLOTO_CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
 
       - name: Столото · M5M reader · резерв
         env:
           STOLOTO_EMAIL: ${{ secrets.STOLOTO_EMAIL }}
           STOLOTO_PASSWORD: ${{ secrets.STOLOTO_PASSWORD }}
+          STOLOTO_CHROME_PATH: ${{ env.STOLOTO_CHROME_PATH }}
         run: node stoloto-keno-update-v62.mjs
 
       - name: Проверить новый факт
