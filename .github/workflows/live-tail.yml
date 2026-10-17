@@ -1,0 +1,35 @@
+name: KENO 6.2 lightweight LIVE tail
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+permissions:
+  contents: write
+concurrency:
+  group: keno-v62-live-tail
+  cancel-in-progress: true
+jobs:
+  tail:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Generate compact recent draws
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          src=Path('keno-history-v62.json')
+          rows=json.loads(src.read_text(encoding='utf-8'))
+          Path('keno-live-tail.json').write_text(json.dumps(rows[-350:],ensure_ascii=False,separators=(',',':')),encoding='utf-8')
+          PY
+      - name: Commit changed feed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add keno-live-tail.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "KENO LIVE tail update"
+          git pull --rebase origin main
+          git push origin HEAD:main
