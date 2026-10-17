@@ -591,43 +591,38 @@ async function fetchTextWithTimeout(url,ms=7000){
 async function update(){
  if(updatePromise)return updatePromise;
  updatePromise=(async()=>{
-  const live='./keno-live-tail.json';
-  $('status').textContent='Проверяю свежие тиражи (быстрая лента)…';
-  try{
-   const text=await fetchTextWithTimeout(live,4500);
-   const arr=parse(text);
-   if(!arr.length)throw new Error('пустая LIVE лента');
-   const added=merge(arr);
-   render();
-   $('status').textContent='LIVE · добавлено '+added+' · последний №'+(draws.at(-1)?.draw||'—')+' · '+(draws.at(-1)?.time||'');
-   return;
-  }catch(e){
-   console.warn('Быстрая лента недоступна, использую резерв',e);
-  }
-  const saved=(localStorage.getItem('pozitron_v62_url')||'./keno-history-v62.json').trim();
-  const configured=[
-   {label:'GitHub Pages',url:'./keno-history-v62.json'},
-   {label:'Настроенный источник',url:saved},
-   {label:'GitHub RAW',url:'https://raw.githubusercontent.com/arsazet17/pozitron-keno-v5/main/keno-history-v62.json'}
+  // Общая актуальная лента официальных тиражей: 20 чисел, столб, время.
+  const feeds=[
+   {label:'LIVE Матрица',url:'https://arsazet17.github.io/pozitron-column-matrix-v1/keno-recent.json'},
+   {label:'LIVE RAW Матрица',url:'https://raw.githubusercontent.com/arsazet17/pozitron-column-matrix-v1/main/keno-recent.json'},
+   {label:'Локальный LIVE',url:'./keno-live-tail.json'}
   ];
-  const seen=new Set();
-  const sources=configured.filter(source=>source.url&&!seen.has(source.url)&&seen.add(source.url));
-  $('status').textContent='LIVE недоступен · проверяю резерв…';
-  const pending=sources.map(source=>fetchTextWithTimeout(source.url,5000).then(text=>{
-    const arr=parse(text);
-    if(!arr.length)throw new Error('нет тиражей');
-    return {source,arr,latest:Number(arr.at(-1)?.draw||0)};
+  $('status').textContent='LIVE · получаю свежие тиражи…';
+  const results=await Promise.allSettled(feeds.map(async f=>{
+   const data=parse(await fetchTextWithTimeout(f.url,4500));
+   if(!data.length)throw new Error('пустая лента');
+   return {...f,data,latest:Number(data.at(-1).draw)};
   }));
-  const checked=await Promise.allSettled(pending);
-  const available=checked.filter(x=>x.status==='fulfilled').map(x=>x.value).sort((a,b)=>b.latest-a.latest);
-  if(!available.length){
-    render();
-    $('status').textContent='Нет связи с источниками · показана сохранённая база №'+(draws.at(-1)?.draw||'—');
-    return;
+  const available=results.filter(x=>x.status==='fulfilled').map(x=>x.value)
+   .sort((a,b)=>b.latest-a.latest);
+  if(available.length){
+   const freshest=available[0],added=merge(freshest.data);
+   render();
+   const last=draws.at(-1);
+   $('status').textContent=freshest.label+' · добавлено '+added+' · последний №'+last.draw+' · '+last.time;
+   return;
   }
-  const freshest=available[0],added=merge(freshest.arr);
-  render();
-  $('status').textContent=freshest.source.label+' · добавлено '+added+' · последний №'+(draws.at(-1)?.draw||'—');
+  $('status').textContent='LIVE недоступен · проверяю резервный архив…';
+  try{
+   const data=parse(await fetchTextWithTimeout('./keno-history-v62.json',5500));
+   if(!data.length)throw new Error('пустой архив');
+   const added=merge(data);
+   render();
+   $('status').textContent='Резерв · добавлено '+added+' · последний №'+draws.at(-1).draw;
+  }catch(e){
+   render();
+   $('status').textContent='Нет связи с LIVE · сохранённый тираж №'+(draws.at(-1)?.draw||'—');
+  }
  })();
  try{await updatePromise;}finally{updatePromise=null;}
 }
