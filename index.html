@@ -590,51 +590,46 @@ async function fetchTextWithTimeout(url,ms=7000){
 
 async function update(){
  if(updatePromise)return updatePromise;
-
  updatePromise=(async()=>{
+  const live='./keno-live-tail.json';
+  $('status').textContent='Проверяю свежие тиражи (быстрая лента)…';
+  try{
+   const text=await fetchTextWithTimeout(live,4500);
+   const arr=parse(text);
+   if(!arr.length)throw new Error('пустая LIVE лента');
+   const added=merge(arr);
+   render();
+   $('status').textContent='LIVE · добавлено '+added+' · последний №'+(draws.at(-1)?.draw||'—')+' · '+(draws.at(-1)?.time||'');
+   return;
+  }catch(e){
+   console.warn('Быстрая лента недоступна, использую резерв',e);
+  }
   const saved=(localStorage.getItem('pozitron_v62_url')||'./keno-history-v62.json').trim();
   const configured=[
    {label:'GitHub Pages',url:'./keno-history-v62.json'},
    {label:'Настроенный источник',url:saved},
-   {label:'GitHub RAW',url:'https://raw.githubusercontent.com/arsazet17/pozitron-keno-v5/main/keno-history-v62.json'},
-   {label:'Резерв Netlify',url:'https://pozitron-keno-v3.netlify.app/.netlify/functions/fresh-draws'}
+   {label:'GitHub RAW',url:'https://raw.githubusercontent.com/arsazet17/pozitron-keno-v5/main/keno-history-v62.json'}
   ];
   const seen=new Set();
   const sources=configured.filter(source=>source.url&&!seen.has(source.url)&&seen.add(source.url));
-
-  $('status').textContent='Проверяю свежесть всех источников…';
-  const checked=await Promise.allSettled(sources.map(async(source,priority)=>{
-   const text=await fetchTextWithTimeout(source.url,7000);
-   const arr=parse(text);
-   if(!arr.length)throw new Error('нет распознанных тиражей');
-   return{...source,priority,arr,latest:Number(arr.at(-1)?.draw||0)}
+  $('status').textContent='LIVE недоступен · проверяю резерв…';
+  const pending=sources.map(source=>fetchTextWithTimeout(source.url,5000).then(text=>{
+    const arr=parse(text);
+    if(!arr.length)throw new Error('нет тиражей');
+    return {source,arr,latest:Number(arr.at(-1)?.draw||0)};
   }));
-  const available=checked
-   .filter(result=>result.status==='fulfilled')
-   .map(result=>result.value)
-   .sort((a,b)=>b.latest-a.latest||b.arr.length-a.arr.length||a.priority-b.priority);
-
-  checked.forEach((result,index)=>{
-   if(result.status==='rejected')console.warn(`${sources[index].label} временно недоступен`,result.reason)
-  });
-
+  const checked=await Promise.allSettled(pending);
+  const available=checked.filter(x=>x.status==='fulfilled').map(x=>x.value).sort((a,b)=>b.latest-a.latest);
   if(!available.length){
-   render();
-   $('status').textContent='Обновление не выполнено: все источники недоступны';
-   return
+    render();
+    $('status').textContent='Нет связи с источниками · показана сохранённая база №'+(draws.at(-1)?.draw||'—');
+    return;
   }
-
-  const freshest=available[0];
-  const added=merge(freshest.arr);
+  const freshest=available[0],added=merge(freshest.arr);
   render();
-  $('status').textContent=`${freshest.label} · добавлено ${added} · всего ${draws.length} · последний №${draws.at(-1)?.draw||'—'}`;
+  $('status').textContent=freshest.source.label+' · добавлено '+added+' · последний №'+(draws.at(-1)?.draw||'—');
  })();
-
- try{
-  await updatePromise;
- }finally{
-  updatePromise=null;
- }
+ try{await updatePromise;}finally{updatePromise=null;}
 }
 function auto(){
  clearInterval(timer);timer=null;
