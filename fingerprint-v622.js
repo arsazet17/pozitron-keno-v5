@@ -223,9 +223,34 @@
   }
 
   function forecastButton(record,isAnti,mode){
-    return `<button type="button"
-      class="fp-forecast-asc-btn ${mode==='asc'?'active':''}"
-      data-fp-forecast-key="${forecastKey(record,isAnti)}">Воз</button>`;
+    const key=forecastKey(record,isAnti);
+    return `<span class="fp-forecast-actions">
+      <button type="button" class="fp-forecast-asc-btn ${mode==='asc'?'active':''}" data-fp-forecast-key="${key}">Воз</button>
+      <button type="button" class="fp-forecast-column-btn ${mode==='columns'?'active':''}"
+        data-fp-columns-key="${key}" aria-pressed="${mode==='columns'}"
+        title="Группировка по вертикальным столбцам КЕНО">СТ−</button>
+    </span>`;
+  }
+
+  function fingerprintColumnsHtml(numbers,isAnti){
+    // В матрице Столото СТ1=01,11,...,71 и СТ10=10,20,...,80.
+    const columns=Array.from({length:10},()=>[]);
+    for(const item of numbers||[]){
+      const n=Number(item);
+      if(Number.isInteger(n)&&n>=1&&n<=80)columns[(n-1)%10].push(n);
+    }
+    const filled=[],empty=[];
+    columns.forEach((values,index)=>{
+      values.sort((a,b)=>a-b);
+      if(!values.length){empty.push(`<span>СТ${index+1} — 0</span>`);return;}
+      filled.push(`<div class="fp-column-row">
+        <b class="fp-column-caption">СТ${index+1} — ${values.length}</b>
+        <div class="fp-column-numbers">${chips(values,null,isAnti)}</div>
+      </div>`);
+    });
+    return `<div class="fp-column-view">${filled.join('')}
+      ${empty.length?`<div class="fp-column-empty">${empty.join('')}</div>`:''}
+    </div>`;
   }
 
   function forecastCells(numbers,isAnti,mode){
@@ -321,7 +346,9 @@
       main=`<div class="fp-label fp-forecast-label">
           <span>${listTitle}</span>${forecastButton(record,isAnti,mode)}
         </div>
-        <div class="fp-numbers fp-main-pool fp-forecast-pool">${forecastCells(numbers,isAnti,mode)}</div>`;
+        ${mode==='columns'
+          ?fingerprintColumnsHtml(numbers,isAnti)
+          :`<div class="fp-numbers fp-main-pool fp-forecast-pool">${forecastCells(numbers,isAnti,mode)}</div>`}`;
     }
 
     return `<div class="fp-section ${isAnti?'anti-section':'logic-section'}">
@@ -379,6 +406,14 @@
       };
     });
 
+    box.querySelectorAll('[data-fp-columns-key]').forEach(btn=>{
+      btn.onclick=()=>{
+        const key=btn.dataset.fpColumnsKey;
+        const current=state.forecastViews[key]||'original';
+        state.forecastViews[key]=current==='columns'?'original':'columns';
+        render(captureOpenRecords());
+      };
+    });
     box.querySelectorAll('[data-fp-view][data-fp-record]').forEach(btn=>{
       btn.onclick=()=>{
         state.archiveViews[btn.dataset.fpRecord]=btn.dataset.fpView;
@@ -478,6 +513,18 @@
 .fp-forecast-label{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .fp-forecast-asc-btn{border:1px solid #304b6d;background:#172a43;color:var(--text);border-radius:8px;padding:6px 14px;font-weight:950}
 .fp-forecast-asc-btn.active{background:#254b78;border-color:#5b8fc9}
+.fp-forecast-actions{display:inline-flex;align-items:center;gap:6px;flex-shrink:0}
+.fp-forecast-column-btn{border:1px solid #304b6d;background:#172a43;color:var(--text);border-radius:8px;padding:6px 12px;font-weight:950}
+.fp-forecast-column-btn.active{background:#153a2a;border-color:#72df95;color:#a8edb9}
+.anti-section .fp-forecast-column-btn.active{background:#332812;border-color:#f0a63b;color:#ffd37b}
+.fp-column-view{display:grid;gap:6px;margin-top:8px}
+.fp-column-row{display:grid;grid-template-columns:85px minmax(0,1fr);gap:7px;align-items:center;background:#102038;border:1px solid #304b6d;border-radius:9px;padding:7px}
+.fp-column-caption{font-size:13px;white-space:nowrap}
+.fp-column-numbers{display:flex;gap:5px;flex-wrap:wrap;min-width:0}
+.fp-column-numbers .fp-num{min-width:36px;padding:7px 5px}
+.fp-column-empty{display:flex;flex-wrap:wrap;gap:9px;padding:10px;border:1px solid #52647b;border-radius:9px;font-weight:900;color:var(--muted)}
+.fp-column-empty span{white-space:nowrap}
+@media(max-width:360px){.fp-column-row{grid-template-columns:74px minmax(0,1fr);padding:6px;gap:5px}.fp-column-caption{font-size:12px}.fp-column-numbers .fp-num{min-width:30px;padding:6px 3px}}
 .anti-section .fp-forecast-asc-btn.active{background:#332812;border-color:#f0a63b;color:#ffd37b}
 .fp-forecast-num.fp-stable-pos{box-shadow:inset 0 0 0 2px #4ade80;border-color:#4ade80}
 .anti-section .fp-forecast-num.fp-stable-pos{box-shadow:inset 0 0 0 2px #f0a63b;border-color:#f0a63b}
